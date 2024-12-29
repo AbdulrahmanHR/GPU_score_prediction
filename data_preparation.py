@@ -1,6 +1,7 @@
 # data_preparation.py
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
+from sklearn.impute import KNNImputer
 
 class DataPreparation:
     def __init__(self, file_path):
@@ -22,6 +23,11 @@ class DataPreparation:
         self.data["gpuChip"] = le.fit_transform(self.data["gpuChip"])
         self.data["bus"] = le.fit_transform(self.data["bus"])
         self.data["memType"] = le.fit_transform(self.data["memType"])
+
+        # Apply KNN Imputation to memSize, memBusWidth, memClock
+        knn_imputer = KNNImputer(n_neighbors=5)  # Using 5 nearest neighbors
+        impute_columns = ["memSize", "memBusWidth", "memClock"]
+        self.data[impute_columns] = knn_imputer.fit_transform(self.data[impute_columns])
 
         # Standardize numerical features
         numerical_features = ["releaseYear", "memSize", "memBusWidth", "gpuClock", "memClock", "unifiedShader", "tmu", "rop"]
