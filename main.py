@@ -1,4 +1,3 @@
-# main.py
 import numpy as np
 from data_preparation import DataPreparation
 from models import HybridModels
@@ -13,43 +12,53 @@ if __name__ == '__main__':
     # Model training and evaluation
     hybrid_models = HybridModels(data)
 
-    xgboost_lstm_preds = hybrid_models.xgboost_lstm()
-    lightgbm_lstm_preds = hybrid_models.lightgbm_lstm()
-    xgboost_cnn_preds = hybrid_models.xgboost_cnn()
-    lightgbm_cnn_preds = hybrid_models.lightgbm_cnn()
+    # Get predictions and true values
+    xgboost_lstm_preds, xgboost_lstm_true = hybrid_models.xgboost_lstm()
+    lightgbm_lstm_preds, lightgbm_lstm_true = hybrid_models.lightgbm_lstm()
+    xgboost_cnn_preds, xgboost_cnn_true = hybrid_models.xgboost_cnn()
+    lightgbm_cnn_preds, lightgbm_cnn_true = hybrid_models.lightgbm_cnn()
 
-    xgboost_lstm_mae = np.mean(abs(xgboost_lstm_preds - data["score"]))
-    xgboost_lstm_rmse = np.sqrt(np.mean((xgboost_lstm_preds - data["score"]) ** 2))
-    xgboost_lstm_r2 = 1 - (np.sum((xgboost_lstm_preds - data["score"]) ** 2) / np.sum((data["score"] - np.mean(data["score"])) ** 2))
+    # Calculate metrics using test set predictions
+    xgboost_lstm_mae = np.mean(abs(xgboost_lstm_preds - xgboost_lstm_true))
+    xgboost_lstm_rmse = np.sqrt(np.mean((xgboost_lstm_preds - xgboost_lstm_true) ** 2))
+    xgboost_lstm_r2 = 1 - (np.sum((xgboost_lstm_preds - xgboost_lstm_true) ** 2) / 
+                          np.sum((xgboost_lstm_true - np.mean(xgboost_lstm_true)) ** 2))
 
-    lightgbm_lstm_mae = np.mean(abs(lightgbm_lstm_preds - data["score"]))
-    lightgbm_lstm_rmse = np.sqrt(np.mean((lightgbm_lstm_preds - data["score"]) ** 2))
-    lightgbm_lstm_r2 = 1 - (np.sum((lightgbm_lstm_preds - data["score"]) ** 2) / np.sum((data["score"] - np.mean(data["score"])) ** 2))
+    lightgbm_lstm_mae = np.mean(abs(lightgbm_lstm_preds - lightgbm_lstm_true))
+    lightgbm_lstm_rmse = np.sqrt(np.mean((lightgbm_lstm_preds - lightgbm_lstm_true) ** 2))
+    lightgbm_lstm_r2 = 1 - (np.sum((lightgbm_lstm_preds - lightgbm_lstm_true) ** 2) / 
+                           np.sum((lightgbm_lstm_true - np.mean(lightgbm_lstm_true)) ** 2))
 
-    xgboost_cnn_mae = np.mean(abs(xgboost_cnn_preds - data["score"]))
-    xgboost_cnn_rmse = np.sqrt(np.mean((xgboost_cnn_preds - data["score"]) ** 2))
-    xgboost_cnn_r2 = 1 - (np.sum((xgboost_cnn_preds - data["score"]) ** 2) / np.sum((data["score"] - np.mean(data["score"])) ** 2))
+    xgboost_cnn_mae = np.mean(abs(xgboost_cnn_preds - xgboost_cnn_true))
+    xgboost_cnn_rmse = np.sqrt(np.mean((xgboost_cnn_preds - xgboost_cnn_true) ** 2))
+    xgboost_cnn_r2 = 1 - (np.sum((xgboost_cnn_preds - xgboost_cnn_true) ** 2) / 
+                         np.sum((xgboost_cnn_true - np.mean(xgboost_cnn_true)) ** 2))
 
-    lightgbm_cnn_mae = np.mean(abs(lightgbm_cnn_preds - data["score"]))
-    lightgbm_cnn_rmse = np.sqrt(np.mean((lightgbm_cnn_preds - data["score"]) ** 2))
-    lightgbm_cnn_r2 = 1 - (np.sum((lightgbm_cnn_preds - data["score"]) ** 2) / np.sum((data["score"] - np.mean(data["score"])) ** 2))
+    lightgbm_cnn_mae = np.mean(abs(lightgbm_cnn_preds - lightgbm_cnn_true))
+    lightgbm_cnn_rmse = np.sqrt(np.mean((lightgbm_cnn_preds - lightgbm_cnn_true) ** 2))
+    lightgbm_cnn_r2 = 1 - (np.sum((lightgbm_cnn_preds - lightgbm_cnn_true) ** 2) / 
+                          np.sum((lightgbm_cnn_true - np.mean(lightgbm_cnn_true)) ** 2))
 
     # Print model performance
-    print("XGBoost/LSTM MAE:", xgboost_lstm_mae)
-    print("XGBoost/LSTM RMSE:", xgboost_lstm_rmse)
-    print("XGBoost/LSTM R²:", xgboost_lstm_r2)
+    print("\nXGBoost/LSTM Performance:")
+    print(f"MAE: {xgboost_lstm_mae:.4f}")
+    print(f"RMSE: {xgboost_lstm_rmse:.4f}")
+    print(f"R²: {xgboost_lstm_r2:.4f}")
 
-    print("LightGBM/LSTM MAE:", lightgbm_lstm_mae)
-    print("LightGBM/LSTM RMSE:", lightgbm_lstm_rmse)
-    print("LightGBM/LSTM R²:", lightgbm_lstm_r2)
+    print("\nLightGBM/LSTM Performance:")
+    print(f"MAE: {lightgbm_lstm_mae:.4f}")
+    print(f"RMSE: {lightgbm_lstm_rmse:.4f}")
+    print(f"R²: {lightgbm_lstm_r2:.4f}")
 
-    print("XGBoost/CNN MAE:", xgboost_cnn_mae)
-    print("XGBoost/CNN RMSE:", xgboost_cnn_rmse)
-    print("XGBoost/CNN R²:", xgboost_cnn_r2)
+    print("\nXGBoost/CNN Performance:")
+    print(f"MAE: {xgboost_cnn_mae:.4f}")
+    print(f"RMSE: {xgboost_cnn_rmse:.4f}")
+    print(f"R²: {xgboost_cnn_r2:.4f}")
 
-    print("LightGBM/CNN MAE:", lightgbm_cnn_mae)
-    print("LightGBM/CNN RMSE:", lightgbm_cnn_rmse)
-    print("LightGBM/CNN R²:", lightgbm_cnn_r2)
+    print("\nLightGBM/CNN Performance:")
+    print(f"MAE: {lightgbm_cnn_mae:.4f}")
+    print(f"RMSE: {lightgbm_cnn_rmse:.4f}")
+    print(f"R²: {lightgbm_cnn_r2:.4f}")
 
     # Plot model performance
     plot_model_performance(
