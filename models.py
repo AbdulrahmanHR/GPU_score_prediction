@@ -116,7 +116,7 @@ class HybridModels:
     def xgboost_lstm(self):
         xgb_model = xgb.XGBRegressor(
             n_estimators=40,
-            max_depth=45,
+            max_depth=50,
             learning_rate=0.001,
             colsample_bytree=0.8,
             early_stopping_rounds=10
