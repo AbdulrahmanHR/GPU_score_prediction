@@ -4,6 +4,7 @@ from data_preparation import DataPreparation
 from models import HybridModels
 from inference import InferencePipeline
 from model_performance_chart import plot_model_performance
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 if __name__ == '__main__':
     # Data preparation
@@ -13,63 +14,56 @@ if __name__ == '__main__':
     # Model training and evaluation
     hybrid_models = HybridModels(data)
 
-    # Get predictions and true values
-    xgboost_lstm_preds, xgboost_lstm_true = hybrid_models.xgboost_lstm()
-    lightgbm_lstm_preds, lightgbm_lstm_true = hybrid_models.lightgbm_lstm()
-    xgboost_cnn_preds, xgboost_cnn_true = hybrid_models.xgboost_cnn()
-    lightgbm_cnn_preds, lightgbm_cnn_true = hybrid_models.lightgbm_cnn()
+    # Dictionary to store all predictions and metrics
+    model_results = {}
 
-    # Calculate metrics using test set predictions
-    xgboost_lstm_mae = np.mean(abs(xgboost_lstm_preds - xgboost_lstm_true))
-    xgboost_lstm_rmse = np.sqrt(np.mean((xgboost_lstm_preds - xgboost_lstm_true) ** 2))
-    xgboost_lstm_r2 = 1 - (np.sum((xgboost_lstm_preds - xgboost_lstm_true) ** 2) / 
-                          np.sum((xgboost_lstm_true - np.mean(xgboost_lstm_true)) ** 2))
+    # Train and evaluate each model
+    models = {
+        'XGBoost/LSTM': hybrid_models.xgboost_lstm,
+        'LightGBM/LSTM': hybrid_models.lightgbm_lstm,
+        'XGBoost/CNN': hybrid_models.xgboost_cnn,
+        'LightGBM/CNN': hybrid_models.lightgbm_cnn
+    }
 
-    lightgbm_lstm_mae = np.mean(abs(lightgbm_lstm_preds - lightgbm_lstm_true))
-    lightgbm_lstm_rmse = np.sqrt(np.mean((lightgbm_lstm_preds - lightgbm_lstm_true) ** 2))
-    lightgbm_lstm_r2 = 1 - (np.sum((lightgbm_lstm_preds - lightgbm_lstm_true) ** 2) / 
-                           np.sum((lightgbm_lstm_true - np.mean(lightgbm_lstm_true)) ** 2))
+    for model_name, model_func in models.items():
+        # Get predictions and true values
+        predictions, true_values = model_func()
+        
+        # Calculate metrics
+        mae = mean_absolute_error(true_values, predictions)
+        rmse = np.sqrt(mean_squared_error(true_values, predictions))
+        r2 = r2_score(true_values, predictions)
+        
+        # Store results
+        model_results[model_name] = {
+            'predictions': predictions,
+            'true_values': true_values,
+            'metrics': {
+                'MAE': mae,
+                'RMSE': rmse,
+                'R²': r2
+            }
+        }
 
-    xgboost_cnn_mae = np.mean(abs(xgboost_cnn_preds - xgboost_cnn_true))
-    xgboost_cnn_rmse = np.sqrt(np.mean((xgboost_cnn_preds - xgboost_cnn_true) ** 2))
-    xgboost_cnn_r2 = 1 - (np.sum((xgboost_cnn_preds - xgboost_cnn_true) ** 2) / 
-                         np.sum((xgboost_cnn_true - np.mean(xgboost_cnn_true)) ** 2))
-
-    lightgbm_cnn_mae = np.mean(abs(lightgbm_cnn_preds - lightgbm_cnn_true))
-    lightgbm_cnn_rmse = np.sqrt(np.mean((lightgbm_cnn_preds - lightgbm_cnn_true) ** 2))
-    lightgbm_cnn_r2 = 1 - (np.sum((lightgbm_cnn_preds - lightgbm_cnn_true) ** 2) / 
-                          np.sum((lightgbm_cnn_true - np.mean(lightgbm_cnn_true)) ** 2))
-
-    # Print model performance
-    print("\nXGBoost/LSTM Performance:")
-    print(f"MAE: {xgboost_lstm_mae:.4f}")
-    print(f"RMSE: {xgboost_lstm_rmse:.4f}")
-    print(f"R²: {xgboost_lstm_r2:.4f}")
-
-    print("\nLightGBM/LSTM Performance:")
-    print(f"MAE: {lightgbm_lstm_mae:.4f}")
-    print(f"RMSE: {lightgbm_lstm_rmse:.4f}")
-    print(f"R²: {lightgbm_lstm_r2:.4f}")
-
-    print("\nXGBoost/CNN Performance:")
-    print(f"MAE: {xgboost_cnn_mae:.4f}")
-    print(f"RMSE: {xgboost_cnn_rmse:.4f}")
-    print(f"R²: {xgboost_cnn_r2:.4f}")
-
-    print("\nLightGBM/CNN Performance:")
-    print(f"MAE: {lightgbm_cnn_mae:.4f}")
-    print(f"RMSE: {lightgbm_cnn_rmse:.4f}")
-    print(f"R²: {lightgbm_cnn_r2:.4f}")
+        # Print model performance
+        print(f"\n{model_name} Performance:")
+        print(f"MAE: {mae:.4f}")
+        print(f"RMSE: {rmse:.4f}")
+        print(f"R²: {r2:.4f}")
 
     # Plot model performance
     plot_model_performance(
-        (xgboost_lstm_mae, xgboost_lstm_rmse),
-        (lightgbm_lstm_mae, lightgbm_lstm_rmse),
-        (xgboost_cnn_mae, xgboost_cnn_rmse),
-        (lightgbm_cnn_mae, lightgbm_cnn_rmse)
+        (model_results['XGBoost/LSTM']['metrics']['MAE'], 
+         model_results['XGBoost/LSTM']['metrics']['RMSE']),
+        (model_results['LightGBM/LSTM']['metrics']['MAE'], 
+         model_results['LightGBM/LSTM']['metrics']['RMSE']),
+        (model_results['XGBoost/CNN']['metrics']['MAE'], 
+         model_results['XGBoost/CNN']['metrics']['RMSE']),
+        (model_results['LightGBM/CNN']['metrics']['MAE'], 
+         model_results['LightGBM/CNN']['metrics']['RMSE'])
     )
 
-    # Inference pipeline
+    # Inference pipeline, This part will be tottaly changed
     inference_pipeline = InferencePipeline('xgboost_lstm', 'gpu_specs_v6_score.csv')
     new_data = inference_pipeline.preprocess_new_data()
     predictions = inference_pipeline.predict(new_data)

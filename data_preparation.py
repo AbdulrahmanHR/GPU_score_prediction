@@ -1,6 +1,6 @@
 # data_preparation.py
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import KNNImputer
 
 class DataPreparation:

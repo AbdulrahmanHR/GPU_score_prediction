@@ -1,3 +1,4 @@
+# models.py
 import xgboost as xgb
 import lightgbm as lgb
 import tensorflow as tf
@@ -28,7 +29,7 @@ class HybridModels:
         self.X_test = self.X[train_size + val_size:train_size + val_size + test_size]
         self.y_test = self.y[train_size + val_size:train_size + val_size + test_size]
 
-    def _train_lstm(self, features, model_name, epochs=50, batch_size=32):
+    def train_lstm(self, features, model_name, epochs=50, batch_size=32):
         features_train = features[:self.X_train.shape[0]]
         features_val = features[self.X_train.shape[0]:self.X_train.shape[0] + self.X_val.shape[0]]
         features_test = features[self.X_train.shape[0] + self.X_val.shape[0]:]
@@ -70,7 +71,7 @@ class HybridModels:
         
         return lstm_model.predict(lstm_input_test).flatten() # This only return the performance of the testing set
 
-    def _train_cnn(self, features, model_name, epochs=50, batch_size=32):
+    def train_cnn(self, features, model_name, epochs=50, batch_size=32):
         features_train = features[:self.X_train.shape[0]]
         features_val = features[self.X_train.shape[0]:self.X_train.shape[0] + self.X_val.shape[0]]
         features_test = features[self.X_train.shape[0] + self.X_val.shape[0]:]
@@ -114,9 +115,9 @@ class HybridModels:
 
     def xgboost_lstm(self):
         xgb_model = xgb.XGBRegressor(
-            n_estimators=30,
-            max_depth=40,
-            learning_rate=0.01,
+            n_estimators=40,
+            max_depth=45,
+            learning_rate=0.001,
             colsample_bytree=0.8,
             early_stopping_rounds=10
         )
@@ -126,14 +127,14 @@ class HybridModels:
             verbose=0
         )
         xgb_features = xgb_model.apply(self.X)
-        predictions = self._train_lstm(xgb_features, 'xgboost_lstm')
+        predictions = self.train_lstm(xgb_features, 'xgboost_lstm')
         return predictions, self.y_test
 
     def lightgbm_lstm(self):
         lgb_model = lgb.LGBMRegressor(
-            n_estimators=40,
-            max_depth=40,
-            learning_rate=0.01,
+            n_estimators=100,
+            max_depth=50,
+            learning_rate=0.1,
             min_split_gain=0.01
         )
         lgb_model.fit(
@@ -141,15 +142,15 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
-        lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
-        predictions = self._train_lstm(lgb_features, 'lightgbm_lstm')
+        lgb_features = lgb_model.predict(self.X).reshape(-1, 1) # What is this reshape?
+        predictions = self.train_lstm(lgb_features, 'lightgbm_lstm')
         return predictions, self.y_test
 
     def xgboost_cnn(self):
         xgb_model = xgb.XGBRegressor(
             n_estimators=100,
-            max_depth=40,
-            learning_rate=0.01,
+            max_depth=50,
+            learning_rate=0.001,
             colsample_bytree=0.8,
             early_stopping_rounds=10
         )
@@ -159,14 +160,14 @@ class HybridModels:
             verbose=0
         )
         xgb_features = xgb_model.apply(self.X)
-        predictions = self._train_cnn(xgb_features, 'xgboost_cnn')
+        predictions = self.train_cnn(xgb_features, 'xgboost_cnn')
         return predictions, self.y_test
 
     def lightgbm_cnn(self):
         lgb_model = lgb.LGBMRegressor(
             n_estimators=40,
             max_depth=20,
-            learning_rate=0.001,
+            learning_rate=0.1,
             min_split_gain=0.01
         )
         lgb_model.fit(
@@ -175,5 +176,5 @@ class HybridModels:
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
-        predictions = self._train_cnn(lgb_features, 'lightgbm_cnn')
+        predictions = self.train_cnn(lgb_features, 'lightgbm_cnn')
         return predictions, self.y_test
