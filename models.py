@@ -116,8 +116,8 @@ class HybridModels:
 
     def xgboost_lstm(self):
         xgb_model = xgb.XGBRegressor(
-            n_estimators=45,
-            max_depth=50,
+            n_estimators=55,
+            max_depth=40,
             learning_rate=0.001,
             colsample_bytree=0.7,
             early_stopping_rounds=10
@@ -138,8 +138,8 @@ class HybridModels:
 
     def lightgbm_lstm(self):
         lgb_model = lgb.LGBMRegressor(
-            n_estimators=100,
-            max_depth=50,
+            n_estimators=50,
+            max_depth=25,
             learning_rate=0.1,
             min_split_gain=0.01
         )
@@ -160,9 +160,9 @@ class HybridModels:
     def xgboost_cnn(self):
         xgb_model = xgb.XGBRegressor(
             n_estimators=100,
-            max_depth=50,
+            max_depth=45,
             learning_rate=0.001,
-            colsample_bytree=0.8,
+            colsample_bytree=0.7,
             early_stopping_rounds=10
         )
         xgb_model.fit(
@@ -181,8 +181,8 @@ class HybridModels:
 
     def lightgbm_cnn(self):
         lgb_model = lgb.LGBMRegressor(
-            n_estimators=40,
-            max_depth=20,
+            n_estimators=50,
+            max_depth=25,
             learning_rate=0.1,
             min_split_gain=0.01
         )
