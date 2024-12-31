@@ -7,6 +7,9 @@ class DataPreparation:
     def __init__(self, file_path):
         self.file_path = file_path
         self.data = None
+        self.label_encoders = {}
+        self.knn_imputer = None
+        self.scaler = None
 
     def preprocess_data(self):
         # Load data
@@ -19,19 +22,20 @@ class DataPreparation:
         self.data = pd.get_dummies(self.data, columns=["manufacturer"], drop_first=True)
 
         # Label encode gpuChip, bus, and memType
-        le = LabelEncoder()
-        self.data["gpuChip"] = le.fit_transform(self.data["gpuChip"])
-        self.data["bus"] = le.fit_transform(self.data["bus"])
-        self.data["memType"] = le.fit_transform(self.data["memType"])
+        self.label_encoders = {}
+        for column in ['gpuChip', 'bus', 'memType']:
+            self.label_encoders[column] = LabelEncoder()
+            self.data[column] = self.label_encoders[column].fit_transform(self.data[column])
 
-        # Apply KNN Imputation to memSize, memBusWidth, memClock
-        knn_imputer = KNNImputer(n_neighbors=5)  # Using 5 nearest neighbors
+        # Apply KNN Imputation
+        self.knn_imputer = KNNImputer(n_neighbors=5)
         impute_columns = ["memSize", "memBusWidth", "memClock"]
-        self.data[impute_columns] = knn_imputer.fit_transform(self.data[impute_columns])
+        self.data[impute_columns] = self.knn_imputer.fit_transform(self.data[impute_columns])
 
         # Standardize numerical features
-        numerical_features = ["releaseYear", "memSize", "memBusWidth", "gpuClock", "memClock", "unifiedShader", "tmu", "rop"]
-        scaler = StandardScaler()
-        self.data[numerical_features] = scaler.fit_transform(self.data[numerical_features])
+        self.scaler = StandardScaler()
+        numerical_features = ["releaseYear", "memSize", "memBusWidth", "gpuClock", 
+                            "memClock", "unifiedShader", "tmu", "rop"]
+        self.data[numerical_features] = self.scaler.fit_transform(self.data[numerical_features])
 
         return self.data

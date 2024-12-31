@@ -69,7 +69,8 @@ class HybridModels:
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
         
-        return lstm_model.predict(lstm_input_test).flatten() # This only return the performance of the testing set
+        test_predictions = lstm_model.predict(lstm_input_test).flatten()
+        return lstm_model, test_predictions
 
     def train_cnn(self, features, model_name, epochs=50, batch_size=32):
         features_train = features[:self.X_train.shape[0]]
@@ -110,15 +111,15 @@ class HybridModels:
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
         
-        return cnn_model.predict(cnn_input_test).flatten() # This only return the performance of the testing set
-
+        test_predictions = cnn_model.predict(cnn_input_test).flatten()
+        return cnn_model, test_predictions
 
     def xgboost_lstm(self):
         xgb_model = xgb.XGBRegressor(
-            n_estimators=40,
+            n_estimators=45,
             max_depth=50,
             learning_rate=0.001,
-            colsample_bytree=0.8,
+            colsample_bytree=0.7,
             early_stopping_rounds=10
         )
         xgb_model.fit(
@@ -127,8 +128,13 @@ class HybridModels:
             verbose=0
         )
         xgb_features = xgb_model.apply(self.X)
-        predictions = self.train_lstm(xgb_features, 'xgboost_lstm')
-        return predictions, self.y_test
+        lstm_model, predictions = self.train_lstm(xgb_features, 'xgboost_lstm')
+        return {
+            'feature_extractor': xgb_model,
+            'predictor': lstm_model,
+            'predictions': predictions,
+            'true_values': self.y_test
+        }
 
     def lightgbm_lstm(self):
         lgb_model = lgb.LGBMRegressor(
@@ -142,9 +148,14 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
-        lgb_features = lgb_model.predict(self.X).reshape(-1, 1) # What is this reshape?
-        predictions = self.train_lstm(lgb_features, 'lightgbm_lstm')
-        return predictions, self.y_test
+        lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
+        lstm_model, predictions = self.train_lstm(lgb_features, 'lightgbm_lstm')
+        return {
+            'feature_extractor': lgb_model,
+            'predictor': lstm_model,
+            'predictions': predictions,
+            'true_values': self.y_test
+        }
 
     def xgboost_cnn(self):
         xgb_model = xgb.XGBRegressor(
@@ -160,8 +171,13 @@ class HybridModels:
             verbose=0
         )
         xgb_features = xgb_model.apply(self.X)
-        predictions = self.train_cnn(xgb_features, 'xgboost_cnn')
-        return predictions, self.y_test
+        cnn_model, predictions = self.train_cnn(xgb_features, 'xgboost_cnn')
+        return {
+            'feature_extractor': xgb_model,
+            'predictor': cnn_model,
+            'predictions': predictions,
+            'true_values': self.y_test
+        }
 
     def lightgbm_cnn(self):
         lgb_model = lgb.LGBMRegressor(
@@ -176,5 +192,10 @@ class HybridModels:
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
-        predictions = self.train_cnn(lgb_features, 'lightgbm_cnn')
-        return predictions, self.y_test
+        cnn_model, predictions = self.train_cnn(lgb_features, 'lightgbm_cnn')
+        return {
+            'feature_extractor': lgb_model,
+            'predictor': cnn_model,
+            'predictions': predictions,
+            'true_values': self.y_test
+        }
