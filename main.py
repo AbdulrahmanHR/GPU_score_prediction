@@ -2,10 +2,11 @@
 import numpy as np
 from data_preparation import DataPreparation
 from models import HybridModels
-from inference import InferencePipeline
 from model_performance_chart import plot_model_performance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import joblib
+import os
+
 
 # Data preparation
 data_prep = DataPreparation('gpu_specs_v6_score.csv')
@@ -72,7 +73,6 @@ plot_model_performance(
 # Inference pipeline
 
 # Create directories if they don't exist
-import os
 os.makedirs('models/transformers/label_encoders', exist_ok=True)
 
 # Save transformers
@@ -115,10 +115,62 @@ model_paths = {
     'transformers': transformer_paths
 }
 
-# # Save models after training
-# for model_name, model_objects in model_results.items():
-#     feature_extractor_path = f'models/{model_name.lower()}_feature_extractor.pkl'
-#     predictor_path = f'models/{model_name.lower()}_predictor.h5'
+# Save models after training
+for model_name, model_objects in model_results.items():
+    # Create directory structure
+    model_dir = f"models/{model_name.replace('/', '_').lower()}"
+    os.makedirs(model_dir, exist_ok=True)
     
-#     joblib.dump(model_objects['feature_extractor'], feature_extractor_path)
-#     model_objects['predictor'].save(predictor_path)
+    # Define file paths
+    feature_extractor_path = f"{model_dir}/feature_extractor.pkl"
+    predictor_path = f"{model_dir}/predictor.h5"
+    
+    # Save feature extractor and predictor
+    joblib.dump(model_objects['feature_extractor'], feature_extractor_path)
+    model_objects['predictor'].save(predictor_path)
+
+# Save transformers (already handled earlier in your script)
+transformer_paths = {
+    'label_encoders': {
+        'gpuChip': 'models/transformers/label_encoders/le_gpuChip.pkl',
+        'bus': 'models/transformers/label_encoders/le_bus.pkl',
+        'memType': 'models/transformers/label_encoders/le_memType.pkl'
+    },
+    'knn_imputer': 'models/transformers/knn_imputer.pkl',
+    'scaler': 'models/transformers/scaler.pkl'
+}
+
+# Ensure directories for transformers
+os.makedirs('models/transformers/label_encoders', exist_ok=True)
+
+# Save label encoders
+for column, le in data_prep.label_encoders.items():
+    joblib.dump(le, transformer_paths['label_encoders'][column])
+
+# Save KNN imputer and scaler
+joblib.dump(data_prep.knn_imputer, transformer_paths['knn_imputer'])
+joblib.dump(data_prep.scaler, transformer_paths['scaler'])
+
+# Update `model_paths` dictionary to match structure in `InferencePipeline`
+model_paths = {
+    'transformers': transformer_paths,
+    'xgboost_lstm': {
+        'feature_extractor': 'models/xgboost_lstm/feature_extractor.pkl',
+        'predictor': 'models/xgboost_lstm/predictor.h5'
+    },
+    'lightgbm_lstm': {
+        'feature_extractor': 'models/lightgbm_lstm/feature_extractor.pkl',
+        'predictor': 'models/lightgbm_lstm/predictor.h5'
+    },
+    'xgboost_cnn': {
+        'feature_extractor': 'models/xgboost_cnn/feature_extractor.pkl',
+        'predictor': 'models/xgboost_cnn/predictor.h5'
+    },
+    'lightgbm_cnn': {
+        'feature_extractor': 'models/lightgbm_cnn/feature_extractor.pkl',
+        'predictor': 'models/lightgbm_cnn/predictor.h5'
+    }
+}
+
+# Save `model_paths` for easy loading later (optional)
+joblib.dump(model_paths, 'models/model_paths.pkl')

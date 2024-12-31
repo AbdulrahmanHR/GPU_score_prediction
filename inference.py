@@ -1,12 +1,9 @@
 # inference
-import numpy as np
 import pandas as pd
-import xgboost as xgb
-import lightgbm as lgb
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 import joblib
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.impute import KNNImputer
+from tensorflow.keras.losses import MeanSquaredError # type: ignore
+
 
 class InferencePipeline:
     def __init__(self):
@@ -17,36 +14,6 @@ class InferencePipeline:
         """
         Load all necessary models and preprocessors
         
-        Args:
-            model_paths (dict): Dictionary containing paths to saved models and transformers
-            Example:
-            {
-                'xgboost_lstm': {
-                    'feature_extractor': 'path/to/xgboost.pkl',
-                    'predictor': 'path/to/lstm.h5'
-                },
-                'lightgbm_lstm': {
-                    'feature_extractor': 'path/to/lightgbm.pkl',
-                    'predictor': 'path/to/lstm.h5'
-                },
-                'xgboost_cnn': {
-                    'feature_extractor': 'path/to/xgboost.pkl',
-                    'predictor': 'path/to/cnn.h5'
-                },
-                'lightgbm_cnn': {
-                    'feature_extractor': 'path/to/lightgbm.pkl',
-                    'predictor': 'path/to/cnn.h5'
-                },
-                'transformers': {
-                    'label_encoders': {
-                        'gpuChip': 'path/to/le_gpuChip.pkl',
-                        'bus': 'path/to/le_bus.pkl',
-                        'memType': 'path/to/le_memType.pkl'
-                    },
-                    'knn_imputer': 'path/to/knn_imputer.pkl',
-                    'scaler': 'path/to/scaler.pkl'
-                }
-            }
         """
         # Load transformers
         self.transformers = {
@@ -64,18 +31,13 @@ class InferencePipeline:
             if model_name not in ['transformers']:
                 self.models[model_name] = {
                     'feature_extractor': joblib.load(paths['feature_extractor']),
-                    'predictor': load_model(paths['predictor'])
+                    'predictor': load_model(paths['predictor'], custom_objects={'mse': MeanSquaredError()})
                 }
     
     def preprocess_input(self, input_data):
         """
         Preprocess the input data using the saved transformers
         
-        Args:
-            input_data (pd.DataFrame): Raw input data
-            
-        Returns:
-            pd.DataFrame: Preprocessed data
         """
         # Make a copy of input data
         data = input_data.copy()
@@ -107,13 +69,7 @@ class InferencePipeline:
     def predict(self, input_data, model_name):
         """
         Make predictions using the specified model
-        
-        Args:
-            input_data (pd.DataFrame): Input data to make predictions on
-            model_name (str): Name of the model to use ('xgboost_lstm', 'lightgbm_lstm', etc.)
-            
-        Returns:
-            np.array: Predictions
+
         """
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} not found. Available models: {list(self.models.keys())}")
@@ -142,12 +98,7 @@ class InferencePipeline:
     def predict_all(self, input_data):
         """
         Make predictions using all available models
-        
-        Args:
-            input_data (pd.DataFrame): Input data to make predictions on
-            
-        Returns:
-            dict: Dictionary containing predictions from all models
+
         """
         predictions = {}
         for model_name in self.models.keys():
