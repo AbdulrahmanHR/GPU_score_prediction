@@ -68,26 +68,26 @@ plot_model_performance(train_metrics, test_metrics)
 # Inference pipeline, this part is not fully functional
 
 # Create directories if they don't exist
-os.makedirs('models/transformers/label_encoders', exist_ok=True)
+os.makedirs('models/data_processing/label_encoders', exist_ok=True)
 
-# Save transformers
-transformer_paths = {
+# Save data processing
+data_processing_paths = {
     'label_encoders': {
-        'gpuChip': 'models/transformers/label_encoders/le_gpuChip.pkl',
-        'bus': 'models/transformers/label_encoders/le_bus.pkl',
-        'memType': 'models/transformers/label_encoders/le_memType.pkl'
+        'gpuChip': 'models/data_processing/label_encoders/le_gpuChip.pkl',
+        'bus': 'models/data_processing/label_encoders/le_bus.pkl',
+        'memType': 'models/data_processing/label_encoders/le_memType.pkl'
     },
-    'knn_imputer': 'models/transformers/knn_imputer.pkl',
-    'scaler': 'models/transformers/scaler.pkl'
+    'knn_imputer': 'models/data_processing/knn_imputer.pkl',
+    'scaler': 'models/data_processing/scaler.pkl'
 }
 
 # Save label encoders
 for column, le in data_prep.label_encoders.items():
-    joblib.dump(le, transformer_paths['label_encoders'][column])
+    joblib.dump(le, data_processing_paths['label_encoders'][column])
 
 # Save KNN imputer and scaler
-joblib.dump(data_prep.knn_imputer, transformer_paths['knn_imputer'])
-joblib.dump(data_prep.scaler, transformer_paths['scaler'])
+joblib.dump(data_prep.knn_imputer, data_processing_paths['knn_imputer'])
+joblib.dump(data_prep.scaler, data_processing_paths['scaler'])
 
 # Save models
 model_paths = {
@@ -107,7 +107,7 @@ model_paths = {
         'feature_extractor': 'models/lightgbm_cnn_feature_extractor.pkl',
         'predictor': 'models/lightgbm_cnn_predictor.h5'
     },
-    'transformers': transformer_paths
+    'data_processing': data_processing_paths
 }
 
 # Save models after training
@@ -124,31 +124,31 @@ for model_name, model_objects in model_results.items():
     joblib.dump(model_objects['feature_extractor'], feature_extractor_path)
     model_objects['predictor'].save(predictor_path)
 
-# Save transformers (already handled earlier in your script)
-transformer_paths = {
+# Save data processing (already handled earlier in your script)
+data_processing_paths = {
     'label_encoders': {
-        'gpuChip': 'models/transformers/label_encoders/le_gpuChip.pkl',
-        'bus': 'models/transformers/label_encoders/le_bus.pkl',
-        'memType': 'models/transformers/label_encoders/le_memType.pkl'
+        'gpuChip': 'models/data_processing/label_encoders/le_gpuChip.pkl',
+        'bus': 'models/data_processing/label_encoders/le_bus.pkl',
+        'memType': 'models/data_processing/label_encoders/le_memType.pkl'
     },
-    'knn_imputer': 'models/transformers/knn_imputer.pkl',
-    'scaler': 'models/transformers/scaler.pkl'
-}
+    'knn_imputer': 'models/data_processing/knn_imputer.pkl',
+    'scaler': 'models/data_processing/scaler.pkl'
+} 
 
-# Ensure directories for transformers
-os.makedirs('models/transformers/label_encoders', exist_ok=True)
+# Ensure directories for data processing
+os.makedirs('models/data_processing/label_encoders', exist_ok=True)
 
 # Save label encoders
 for column, le in data_prep.label_encoders.items():
-    joblib.dump(le, transformer_paths['label_encoders'][column])
+    joblib.dump(le, data_processing_paths['label_encoders'][column])
 
 # Save KNN imputer and scaler
-joblib.dump(data_prep.knn_imputer, transformer_paths['knn_imputer'])
-joblib.dump(data_prep.scaler, transformer_paths['scaler'])
+joblib.dump(data_prep.knn_imputer, data_processing_paths['knn_imputer'])
+joblib.dump(data_prep.scaler, data_processing_paths['scaler'])
 
 # Update `model_paths` dictionary to match structure in `InferencePipeline`
 model_paths = {
-    'transformers': transformer_paths,
+    'data_processing': data_processing_paths,
     'xgboost_lstm': {
         'feature_extractor': 'models/xgboost_lstm/feature_extractor.pkl',
         'predictor': 'models/xgboost_lstm/predictor.h5'
@@ -167,5 +167,5 @@ model_paths = {
     }
 }
 
-# Save `model_paths` for easy loading later (optional)
+# Save `model_paths` for easy loading later
 joblib.dump(model_paths, 'models/model_paths.pkl')
