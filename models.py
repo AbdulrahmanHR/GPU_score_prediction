@@ -1,4 +1,4 @@
-import os
+# models.py
 import xgboost as xgb
 import lightgbm as lgb
 import tensorflow as tf
@@ -6,11 +6,9 @@ from keras.models import Sequential  # type: ignore
 from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout  # type: ignore
 from keras.callbacks import EarlyStopping  # type: ignore
 import numpy as np
-import joblib
-
 
 class HybridModels:
-    def __init__(self, data, model_save_dir="models/trained_models"):
+    def __init__(self, data):
         self.data = data
         self.X = data.drop(columns=["score"]).values
         self.y = data["score"].values
@@ -30,11 +28,6 @@ class HybridModels:
         self.X_test = self.X[train_size + val_size:train_size + val_size + test_size]
         self.y_test = self.y[train_size + val_size:train_size + val_size + test_size]
         
-        # Create a directory to save models if it doesn't exist
-        if not os.path.exists(model_save_dir):
-            os.makedirs(model_save_dir)
-        
-        self.model_save_dir = model_save_dir
 
     def train_lstm(self, features, model_name, epochs=50, batch_size=32):
         features_train = features[:self.X_train.shape[0]]
@@ -75,9 +68,6 @@ class HybridModels:
         mse = lstm_model.evaluate(lstm_input_val, self.y_val, verbose=0)
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
-        
-        # Save the model
-        lstm_model.save(os.path.join(self.model_save_dir, f'{model_name}_model.h5'))
         
         test_predictions = lstm_model.predict(lstm_input_test).flatten()
         return lstm_model, test_predictions
@@ -120,9 +110,6 @@ class HybridModels:
         mse = cnn_model.evaluate(cnn_input_val, self.y_val, verbose=0)
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
-        
-        # Save the model
-        cnn_model.save(os.path.join(self.model_save_dir, f'{model_name}_model.h5'))
         
         test_predictions = cnn_model.predict(cnn_input_test).flatten()
         return cnn_model, test_predictions
@@ -174,9 +161,6 @@ class HybridModels:
             verbose=0
         )
         
-        # Save the XGBoost model
-        joblib.dump(xgb_model, os.path.join(self.model_save_dir, 'xgboost_model.pkl'))
-        
         xgb_features = xgb_model.predict(self.X).reshape(-1, 1)
         lstm_model, predictions = self.train_lstm(xgb_features, 'xgboost_lstm')
         
@@ -206,9 +190,6 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
-        
-        # Save the LightGBM model
-        joblib.dump(lgb_model, os.path.join(self.model_save_dir, 'lightgbm_model.pkl'))
         
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
         lstm_model, predictions = self.train_lstm(lgb_features, 'lightgbm_lstm')
@@ -241,9 +222,6 @@ class HybridModels:
             verbose=0
         )
         
-        # Save the XGBoost model
-        joblib.dump(xgb_model, os.path.join(self.model_save_dir, 'xgboost_model.pkl'))
-        
         xgb_features = xgb_model.apply(self.X)
         cnn_model, predictions = self.train_cnn(xgb_features, 'xgboost_cnn')
         
@@ -273,9 +251,6 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
-        
-        # Save the LightGBM model
-        joblib.dump(lgb_model, os.path.join(self.model_save_dir, 'lightgbm_model.pkl'))
         
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
         cnn_model, predictions = self.train_cnn(lgb_features, 'lightgbm_cnn')

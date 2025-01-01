@@ -4,8 +4,8 @@ import numpy as np
 
 def plot_model_performance(train_metrics, test_metrics):
 
-    models = ['XGBoost/LSTM', 'LightGBM/LSTM', 'XGBoost/CNN', 'LightGBM/CNN']
-    
+    models = ['xgboost_lstm', 'lightgbm_lstm', 'xgboost_cnn', 'lightgbm_cnn']
+
     # Prepare training data
     train_mae = [train_metrics[model][0] for model in models]
     train_rmse = [train_metrics[model][1] for model in models]
@@ -38,7 +38,8 @@ def plot_model_performance(train_metrics, test_metrics):
     ax.set_ylabel('Error Value')
     ax.set_title('Training Performance (MAE and RMSE)')
     ax.set_xticks(x)
-    ax.set_xticklabels(models, rotation=45)
+    display_names = [model.replace('_', '/').upper() for model in models]
+    ax.set_xticklabels(display_names, rotation=45)    
     ax.legend()
 
     autolabel(rects1, ax)
@@ -56,7 +57,8 @@ def plot_model_performance(train_metrics, test_metrics):
     ax.set_ylabel('Error Value')
     ax.set_title('Testing Performance (MAE and RMSE)')
     ax.set_xticks(x)
-    ax.set_xticklabels(models, rotation=45)
+    display_names = [model.replace('_', '/').upper() for model in models]
+    ax.set_xticklabels(display_names, rotation=45)    
     ax.legend()
 
     autolabel(rects1, ax)
@@ -72,8 +74,9 @@ def plot_model_performance(train_metrics, test_metrics):
 
     ax.set_ylabel('R² Value')
     ax.set_title('Training Performance (R²)')
-    plt.xticks(rotation=45)
-
+    display_names = [model.replace('_', '/').upper() for model in models]
+    ax.set_xticklabels(display_names, rotation=45)    
+    
     autolabel(rects, ax)
 
     plt.tight_layout()
@@ -86,8 +89,9 @@ def plot_model_performance(train_metrics, test_metrics):
 
     ax.set_ylabel('R² Value')
     ax.set_title('Testing Performance (R²)')
-    plt.xticks(rotation=45)
-
+    display_names = [model.replace('_', '/').upper() for model in models]
+    ax.set_xticklabels(display_names, rotation=45)    
+    
     autolabel(rects, ax)
 
     plt.tight_layout()

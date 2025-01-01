@@ -1,4 +1,5 @@
 # main.py
+import json
 import numpy as np
 from data_preparation import DataPreparation
 from models import HybridModels
@@ -6,7 +7,6 @@ from model_performance_chart import plot_model_performance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import joblib
 import os
-
 
 # Data preparation
 data_prep = DataPreparation('gpu_specs_v6_score.csv')
@@ -20,20 +20,27 @@ model_results = {}
 
 # Train and evaluate each model
 models = {
-    'XGBoost/LSTM': hybrid_models.xgboost_lstm,
-    'LightGBM/LSTM': hybrid_models.lightgbm_lstm,
-    'XGBoost/CNN': hybrid_models.xgboost_cnn,
-    'LightGBM/CNN': hybrid_models.lightgbm_cnn
+    'xgboost_lstm': hybrid_models.xgboost_lstm,
+    'lightgbm_lstm': hybrid_models.lightgbm_lstm,
+    'xgboost_cnn': hybrid_models.xgboost_cnn,
+    'lightgbm_cnn': hybrid_models.lightgbm_cnn
 }
 
 train_metrics = {}
 test_metrics = {}
 
 for model_name, model_func in models.items():
+    print(f"\nTraining {model_name}...")
     # Get model results including both models and predictions
     results = model_func()
     
-    # Calculate training metrics using the new return values
+    # Store the results in model_results dictionary
+    model_results[model_name] = {
+        'feature_extractor': results['feature_extractor'],
+        'predictor': results['predictor']
+    }
+    
+    # Calculate training metrics
     train_mae = mean_absolute_error(results['train_true_values'], results['train_predictions'])
     train_rmse = np.sqrt(mean_squared_error(results['train_true_values'], results['train_predictions']))
     train_r2 = r2_score(results['train_true_values'], results['train_predictions'])
@@ -61,111 +68,78 @@ for model_name, model_func in models.items():
 # Plot model performance
 plot_model_performance(train_metrics, test_metrics)
 
-# Hyperparameters values
-# xgb_lstm_result = hybrid_models.xgboost_lstm()
-# print("Best XGBoost Parameters:", xgb_lstm_result['feature_extractor'].get_params())
+# Create base directory structure
+base_dir = 'models'
+data_processing_dir = os.path.join(base_dir, 'data_processing')
+label_encoders_dir = os.path.join(data_processing_dir, 'label_encoders')
 
-# Inference pipeline, this part is not fully functional
+# Create all necessary directories
+for directory in [base_dir, data_processing_dir, label_encoders_dir]:
+    os.makedirs(directory, exist_ok=True)
 
-# Create directories if they don't exist
-os.makedirs('models/data_processing/label_encoders', exist_ok=True)
-
-# Save data processing
+# Define paths for data processing components
 data_processing_paths = {
     'label_encoders': {
-        'gpuChip': 'models/data_processing/label_encoders/le_gpuChip.pkl',
-        'bus': 'models/data_processing/label_encoders/le_bus.pkl',
-        'memType': 'models/data_processing/label_encoders/le_memType.pkl'
+        'gpuChip': os.path.join(label_encoders_dir, 'le_gpuChip.pkl'),
+        'bus': os.path.join(label_encoders_dir, 'le_bus.pkl'),
+        'memType': os.path.join(label_encoders_dir, 'le_memType.pkl')
     },
-    'knn_imputer': 'models/data_processing/knn_imputer.pkl',
-    'scaler': 'models/data_processing/scaler.pkl'
+    'knn_imputer': os.path.join(data_processing_dir, 'knn_imputer.pkl'),
+    'scaler': os.path.join(data_processing_dir, 'scaler.pkl'),
+    'known_categories': os.path.join(data_processing_dir, 'known_categories.json')
 }
 
-# Save label encoders
+# Save label encoders and their known categories
+known_categories = {}
 for column, le in data_prep.label_encoders.items():
+    # Save label encoder
     joblib.dump(le, data_processing_paths['label_encoders'][column])
+    # Store known categories
+    known_categories[column] = list(le.classes_)
+
+# Save known categories for future reference
+with open(data_processing_paths['known_categories'], 'w') as f:
+    json.dump(known_categories, f)
 
 # Save KNN imputer and scaler
 joblib.dump(data_prep.knn_imputer, data_processing_paths['knn_imputer'])
 joblib.dump(data_prep.scaler, data_processing_paths['scaler'])
 
-# Save models
-model_paths = {
-    'xgboost_lstm': {
-        'feature_extractor': 'models/xgboost_lstm_feature_extractor.pkl',
-        'predictor': 'models/xgboost_lstm_predictor.h5'
-    },
-    'lightgbm_lstm': {
-        'feature_extractor': 'models/lightgbm_lstm_feature_extractor.pkl',
-        'predictor': 'models/lightgbm_lstm_predictor.h5'
-    },
-    'xgboost_cnn': {
-        'feature_extractor': 'models/xgboost_cnn_feature_extractor.pkl',
-        'predictor': 'models/xgboost_cnn_predictor.h5'
-    },
-    'lightgbm_cnn': {
-        'feature_extractor': 'models/lightgbm_cnn_feature_extractor.pkl',
-        'predictor': 'models/lightgbm_cnn_predictor.h5'
-    },
-    'data_processing': data_processing_paths
-}
-
-# Save models after training
-for model_name, model_objects in model_results.items():
-    # Create directory structure
-    model_dir = f"models/{model_name.replace('/', '_').lower()}"
+# Define model structure and save models
+model_structure = {}
+for model_name in model_results.keys():
+    # Create model directory
+    model_dir = os.path.join(base_dir, model_name)
     os.makedirs(model_dir, exist_ok=True)
     
-    # Define file paths
-    feature_extractor_path = f"{model_dir}/feature_extractor.pkl"
-    predictor_path = f"{model_dir}/predictor.h5"
+    # Define paths for this model
+    model_paths = {
+        'feature_extractor': os.path.join(model_dir, 'feature_extractor.pkl'),
+        'predictor': os.path.join(model_dir, 'predictor.h5')
+    }
     
-    # Save feature extractor and predictor
-    joblib.dump(model_objects['feature_extractor'], feature_extractor_path)
-    model_objects['predictor'].save(predictor_path)
+    # Save the models
+    print(f"\nSaving {model_name} models...")
+    joblib.dump(
+        model_results[model_name]['feature_extractor'],
+        model_paths['feature_extractor']
+    )
+    model_results[model_name]['predictor'].save(
+        model_paths['predictor']
+    )
+    
+    # Store paths in model_structure
+    model_structure[model_name] = model_paths
 
-# Save data processing (already handled earlier in your script)
-data_processing_paths = {
-    'label_encoders': {
-        'gpuChip': 'models/data_processing/label_encoders/le_gpuChip.pkl',
-        'bus': 'models/data_processing/label_encoders/le_bus.pkl',
-        'memType': 'models/data_processing/label_encoders/le_memType.pkl'
-    },
-    'knn_imputer': 'models/data_processing/knn_imputer.pkl',
-    'scaler': 'models/data_processing/scaler.pkl'
-} 
-
-# Ensure directories for data processing
-os.makedirs('models/data_processing/label_encoders', exist_ok=True)
-
-# Save label encoders
-for column, le in data_prep.label_encoders.items():
-    joblib.dump(le, data_processing_paths['label_encoders'][column])
-
-# Save KNN imputer and scaler
-joblib.dump(data_prep.knn_imputer, data_processing_paths['knn_imputer'])
-joblib.dump(data_prep.scaler, data_processing_paths['scaler'])
-
-# Update `model_paths` dictionary to match structure in `InferencePipeline`
+# Create final model paths dictionary
 model_paths = {
     'data_processing': data_processing_paths,
-    'xgboost_lstm': {
-        'feature_extractor': 'models/xgboost_lstm/feature_extractor.pkl',
-        'predictor': 'models/xgboost_lstm/predictor.h5'
-    },
-    'lightgbm_lstm': {
-        'feature_extractor': 'models/lightgbm_lstm/feature_extractor.pkl',
-        'predictor': 'models/lightgbm_lstm/predictor.h5'
-    },
-    'xgboost_cnn': {
-        'feature_extractor': 'models/xgboost_cnn/feature_extractor.pkl',
-        'predictor': 'models/xgboost_cnn/predictor.h5'
-    },
-    'lightgbm_cnn': {
-        'feature_extractor': 'models/lightgbm_cnn/feature_extractor.pkl',
-        'predictor': 'models/lightgbm_cnn/predictor.h5'
-    }
+    **model_structure
 }
 
-# Save `model_paths` for easy loading later
-joblib.dump(model_paths, 'models/model_paths.pkl')
+# Save model paths for easy loading
+paths_file = os.path.join(base_dir, 'model_paths.pkl')
+print(f"\nSaving model paths to {paths_file}")
+joblib.dump(model_paths, paths_file)
+
+print("\nAll models and data processing components have been saved successfully!")
