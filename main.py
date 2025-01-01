@@ -26,51 +26,46 @@ models = {
     'LightGBM/CNN': hybrid_models.lightgbm_cnn
 }
 
+train_metrics = {}
+test_metrics = {}
+
 for model_name, model_func in models.items():
     # Get model results including both models and predictions
     results = model_func()
     
-    # Calculate metrics
-    mae = mean_absolute_error(results['true_values'], results['predictions'])
-    rmse = np.sqrt(mean_squared_error(results['true_values'], results['predictions']))
-    r2 = r2_score(results['true_values'], results['predictions'])
+    # Calculate training metrics using the new return values
+    train_mae = mean_absolute_error(results['train_true_values'], results['train_predictions'])
+    train_rmse = np.sqrt(mean_squared_error(results['train_true_values'], results['train_predictions']))
+    train_r2 = r2_score(results['train_true_values'], results['train_predictions'])
     
-    # Store results
-    model_results[model_name] = {
-        'feature_extractor': results['feature_extractor'],
-        'predictor': results['predictor'],
-        'predictions': results['predictions'],
-        'true_values': results['true_values'],
-        'metrics': {
-            'MAE': mae,
-            'RMSE': rmse,
-            'R²': r2
-        }
-    }
+    # Calculate test metrics
+    test_mae = mean_absolute_error(results['true_values'], results['predictions'])
+    test_rmse = np.sqrt(mean_squared_error(results['true_values'], results['predictions']))
+    test_r2 = r2_score(results['true_values'], results['predictions'])
+    
+    # Store metrics
+    train_metrics[model_name] = (train_mae, train_rmse, train_r2)
+    test_metrics[model_name] = (test_mae, test_rmse, test_r2)
     
     # Print model performance
     print(f"\n{model_name} Performance:")
-    print(f"MAE: {mae:.4f}")
-    print(f"RMSE: {rmse:.4f}")
-    print(f"R²: {r2:.4f}")
+    print("Training Metrics:")
+    print(f"MAE: {train_mae:.4f}")
+    print(f"RMSE: {train_rmse:.4f}")
+    print(f"R²: {train_r2:.4f}")
+    print("\nTesting Metrics:")
+    print(f"MAE: {test_mae:.4f}")
+    print(f"RMSE: {test_rmse:.4f}")
+    print(f"R²: {test_r2:.4f}")
 
 # Plot model performance
-plot_model_performance(
-    (model_results['XGBoost/LSTM']['metrics']['MAE'], 
-        model_results['XGBoost/LSTM']['metrics']['RMSE'],
-        model_results['XGBoost/LSTM']['metrics']['R²']),
-    (model_results['LightGBM/LSTM']['metrics']['MAE'], 
-        model_results['LightGBM/LSTM']['metrics']['RMSE'],
-        model_results['LightGBM/LSTM']['metrics']['R²']),
-    (model_results['XGBoost/CNN']['metrics']['MAE'], 
-        model_results['XGBoost/CNN']['metrics']['RMSE'],
-        model_results['XGBoost/CNN']['metrics']['R²']),
-    (model_results['LightGBM/CNN']['metrics']['MAE'], 
-        model_results['LightGBM/CNN']['metrics']['RMSE'],
-        model_results['LightGBM/CNN']['metrics']['R²'])
-)
+plot_model_performance(train_metrics, test_metrics)
 
-# Inference pipeline
+# Hyperparameters values
+# xgb_lstm_result = hybrid_models.xgboost_lstm()
+# print("Best XGBoost Parameters:", xgb_lstm_result['feature_extractor'].get_params())
+
+# Inference pipeline, this part is not fully functional
 
 # Create directories if they don't exist
 os.makedirs('models/transformers/label_encoders', exist_ok=True)

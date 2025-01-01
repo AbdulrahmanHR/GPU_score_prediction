@@ -1,15 +1,16 @@
-# models.py
+import os
 import xgboost as xgb
 import lightgbm as lgb
 import tensorflow as tf
-from keras.models import Sequential # type: ignore
-from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout # type: ignore
-from keras.callbacks import EarlyStopping # type: ignore
+from keras.models import Sequential  # type: ignore
+from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout  # type: ignore
+from keras.callbacks import EarlyStopping  # type: ignore
 import numpy as np
+import joblib
 
 
 class HybridModels:
-    def __init__(self, data):
+    def __init__(self, data, model_save_dir="models/trained_models"):
         self.data = data
         self.X = data.drop(columns=["score"]).values
         self.y = data["score"].values
@@ -28,6 +29,12 @@ class HybridModels:
         
         self.X_test = self.X[train_size + val_size:train_size + val_size + test_size]
         self.y_test = self.y[train_size + val_size:train_size + val_size + test_size]
+        
+        # Create a directory to save models if it doesn't exist
+        if not os.path.exists(model_save_dir):
+            os.makedirs(model_save_dir)
+        
+        self.model_save_dir = model_save_dir
 
     def train_lstm(self, features, model_name, epochs=50, batch_size=32):
         features_train = features[:self.X_train.shape[0]]
@@ -68,6 +75,9 @@ class HybridModels:
         mse = lstm_model.evaluate(lstm_input_val, self.y_val, verbose=0)
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
+        
+        # Save the model
+        lstm_model.save(os.path.join(self.model_save_dir, f'{model_name}_model.h5'))
         
         test_predictions = lstm_model.predict(lstm_input_test).flatten()
         return lstm_model, test_predictions
@@ -111,29 +121,77 @@ class HybridModels:
         rmse = np.sqrt(mse)
         print(f'{model_name} Validation MSE: {mse:.4f}, RMSE: {rmse:.4f}')
         
+        # Save the model
+        cnn_model.save(os.path.join(self.model_save_dir, f'{model_name}_model.h5'))
+        
         test_predictions = cnn_model.predict(cnn_input_test).flatten()
         return cnn_model, test_predictions
 
     def xgboost_lstm(self):
+        param_grid = {
+            'n_estimators': [40, 50, 100, 150],
+            'max_depth': [20, 40, 50, 60],
+            'learning_rate': [0.001, 0.01, 0.05, 0.1],
+            'colsample_bytree': [0.6, 0.7, 0.8]
+        }
+        best_params = None
+        best_score = float('inf')
+
+        for n in param_grid['n_estimators']:
+            for d in param_grid['max_depth']:
+                for lr in param_grid['learning_rate']:
+                    for col in param_grid['colsample_bytree']:
+                        model = xgb.XGBRegressor(
+                            n_estimators=n,
+                            max_depth=d,
+                            learning_rate=lr,
+                            colsample_bytree=col,
+                            early_stopping_rounds=10,
+                            eval_metric='rmse'
+                        )
+                        model.fit(
+                            self.X_train, self.y_train,
+                            eval_set=[(self.X_val, self.y_val)],
+                            verbose=0
+                        )
+                        evals_result = model.evals_result()
+                        score = evals_result['validation_0']['rmse'][-1]
+                        if score < best_score:
+                            best_score = score
+                            best_params = (n, d, lr, col)
+
         xgb_model = xgb.XGBRegressor(
-            n_estimators=55,
-            max_depth=40,
-            learning_rate=0.001,
-            colsample_bytree=0.7,
-            early_stopping_rounds=10
+            n_estimators=best_params[0],
+            max_depth=best_params[1],
+            learning_rate=best_params[2],
+            colsample_bytree=best_params[3],
+            early_stopping_rounds=10,
+            eval_metric='rmse'
         )
         xgb_model.fit(
             self.X_train, self.y_train,
             eval_set=[(self.X_val, self.y_val)],
             verbose=0
         )
-        xgb_features = xgb_model.apply(self.X)
+        
+        # Save the XGBoost model
+        joblib.dump(xgb_model, os.path.join(self.model_save_dir, 'xgboost_model.pkl'))
+        
+        xgb_features = xgb_model.predict(self.X).reshape(-1, 1)
         lstm_model, predictions = self.train_lstm(xgb_features, 'xgboost_lstm')
+        
+        # Generate training predictions
+        train_features = xgb_model.predict(self.X_train).reshape(-1, 1)
+        train_input = train_features.reshape((train_features.shape[0], train_features.shape[1], 1))
+        train_predictions = lstm_model.predict(train_input).flatten()
+        
         return {
             'feature_extractor': xgb_model,
             'predictor': lstm_model,
             'predictions': predictions,
-            'true_values': self.y_test
+            'true_values': self.y_test,
+            'train_predictions': train_predictions,
+            'train_true_values': self.y_train
         }
 
     def lightgbm_lstm(self):
@@ -148,13 +206,25 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
+        
+        # Save the LightGBM model
+        joblib.dump(lgb_model, os.path.join(self.model_save_dir, 'lightgbm_model.pkl'))
+        
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
         lstm_model, predictions = self.train_lstm(lgb_features, 'lightgbm_lstm')
+        
+        # Generate training predictions
+        train_features = lgb_model.predict(self.X_train).reshape(-1, 1)
+        train_input = train_features.reshape((train_features.shape[0], 1, 1))
+        train_predictions = lstm_model.predict(train_input).flatten()
+        
         return {
             'feature_extractor': lgb_model,
             'predictor': lstm_model,
             'predictions': predictions,
-            'true_values': self.y_test
+            'true_values': self.y_test,
+            'train_predictions': train_predictions,
+            'train_true_values': self.y_train
         }
 
     def xgboost_cnn(self):
@@ -170,13 +240,25 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             verbose=0
         )
+        
+        # Save the XGBoost model
+        joblib.dump(xgb_model, os.path.join(self.model_save_dir, 'xgboost_model.pkl'))
+        
         xgb_features = xgb_model.apply(self.X)
         cnn_model, predictions = self.train_cnn(xgb_features, 'xgboost_cnn')
+        
+        # Generate training predictions
+        train_features = xgb_model.apply(self.X_train)
+        train_input = train_features.reshape((train_features.shape[0], train_features.shape[1], 1))
+        train_predictions = cnn_model.predict(train_input).flatten()
+        
         return {
             'feature_extractor': xgb_model,
             'predictor': cnn_model,
             'predictions': predictions,
-            'true_values': self.y_test
+            'true_values': self.y_test,
+            'train_predictions': train_predictions,
+            'train_true_values': self.y_train
         }
 
     def lightgbm_cnn(self):
@@ -191,11 +273,23 @@ class HybridModels:
             eval_set=[(self.X_val, self.y_val)],
             callbacks=[lgb.early_stopping(10, verbose=0)],
         )
+        
+        # Save the LightGBM model
+        joblib.dump(lgb_model, os.path.join(self.model_save_dir, 'lightgbm_model.pkl'))
+        
         lgb_features = lgb_model.predict(self.X).reshape(-1, 1)
         cnn_model, predictions = self.train_cnn(lgb_features, 'lightgbm_cnn')
+        
+        # Generate training predictions
+        train_features = lgb_model.predict(self.X_train).reshape(-1, 1)
+        train_input = train_features.reshape((train_features.shape[0], 1, 1))
+        train_predictions = cnn_model.predict(train_input).flatten()
+        
         return {
             'feature_extractor': lgb_model,
             'predictor': cnn_model,
             'predictions': predictions,
-            'true_values': self.y_test
+            'true_values': self.y_test,
+            'train_predictions': train_predictions,
+            'train_true_values': self.y_train
         }
