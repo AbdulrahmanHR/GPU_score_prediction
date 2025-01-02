@@ -56,6 +56,7 @@ data_processing_paths = {
     'label_encoders': {
         'gpuChip': os.path.join(label_encoders_dir, 'le_gpuChip.pkl'),
         'bus': os.path.join(label_encoders_dir, 'le_bus.pkl'),
+        'manufacturer': os.path.join(label_encoders_dir, 'le_manufacturer.pkl'),
         'memType': os.path.join(label_encoders_dir, 'le_memType.pkl')
     },
     'knn_imputer': os.path.join(data_processing_dir, 'knn_imputer.pkl'),

@@ -18,12 +18,9 @@ class DataPreparation:
         # Drop productName
         self.data.drop(columns=["productName"], inplace=True)
 
-        # One-hot encode manufacturer
-        self.data = pd.get_dummies(self.data, columns=["manufacturer"], drop_first=True)
-
-        # Label encode gpuChip, bus, and memType
+        # Label encode gpuChip, bus, memType, manufacturer
         self.label_encoders = {}
-        for column in ['gpuChip', 'bus', 'memType']:
+        for column in ['gpuChip', 'bus', 'memType', 'manufacturer']:
             self.label_encoders[column] = LabelEncoder()
             self.data[column] = self.label_encoders[column].fit_transform(self.data[column])
 

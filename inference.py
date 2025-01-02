@@ -24,6 +24,7 @@ class InferencePipeline:
             'label_encoders': {
                 'gpuChip': joblib.load(model_paths['data_processing']['label_encoders']['gpuChip']),
                 'bus': joblib.load(model_paths['data_processing']['label_encoders']['bus']),
+                'manufacturer': joblib.load(model_paths['data_processing']['label_encoders']['manufacturer']),
                 'memType': joblib.load(model_paths['data_processing']['label_encoders']['memType'])
             },
             'knn_imputer': joblib.load(model_paths['data_processing']['knn_imputer']),
@@ -71,13 +72,9 @@ class InferencePipeline:
         # Drop productName if exists
         if 'productName' in data.columns:
             data.drop(columns=['productName'], inplace=True)
-            
-        # One-hot encode manufacturer
-        if 'manufacturer' in data.columns:
-            data = pd.get_dummies(data, columns=['manufacturer'], drop_first=True)
         
         # Handle unknown categories and label encode
-        for column in ['gpuChip', 'bus', 'memType']:
+        for column in ['gpuChip', 'bus', 'memType', 'manufacturer']:
             data = self.handle_unknown_categories(data, column)
             data[column] = self.transformers['label_encoders'][column].transform(data[column])
         
