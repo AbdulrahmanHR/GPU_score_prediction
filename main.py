@@ -21,52 +21,26 @@ model_results = {}
 # Train and evaluate each model
 models = {
     'xgboost_lstm': hybrid_models.xgboost_lstm,
-    'lightgbm_lstm': hybrid_models.lightgbm_lstm,
     'xgboost_cnn': hybrid_models.xgboost_cnn,
+    'lightgbm_lstm': hybrid_models.lightgbm_lstm,
     'lightgbm_cnn': hybrid_models.lightgbm_cnn
 }
 
-train_metrics = {}
-test_metrics = {}
-
 for model_name, model_func in models.items():
     print(f"\nTraining {model_name}...")
-    # Get model results including both models and predictions
+    # Get model results
     results = model_func()
-    
-    # Store the results in model_results dictionary
-    model_results[model_name] = {
-        'feature_extractor': results['feature_extractor'],
-        'predictor': results['predictor']
-    }
-    
-    # Calculate training metrics
-    train_mae = mean_absolute_error(results['train_true_values'], results['train_predictions'])
-    train_rmse = np.sqrt(mean_squared_error(results['train_true_values'], results['train_predictions']))
-    train_r2 = r2_score(results['train_true_values'], results['train_predictions'])
-    
-    # Calculate test metrics
-    test_mae = mean_absolute_error(results['true_values'], results['predictions'])
-    test_rmse = np.sqrt(mean_squared_error(results['true_values'], results['predictions']))
-    test_r2 = r2_score(results['true_values'], results['predictions'])
-    
-    # Store metrics
-    train_metrics[model_name] = (train_mae, train_rmse, train_r2)
-    test_metrics[model_name] = (test_mae, test_rmse, test_r2)
-    
-    # Print model performance
-    print(f"\n{model_name} Performance:")
-    print("Training Metrics:")
-    print(f"MAE: {train_mae:.4f}")
-    print(f"RMSE: {train_rmse:.4f}")
-    print(f"R²: {train_r2:.4f}")
-    print("\nTesting Metrics:")
-    print(f"MAE: {test_mae:.4f}")
-    print(f"RMSE: {test_rmse:.4f}")
-    print(f"R²: {test_r2:.4f}")
+    model_results[model_name] = results
 
 # Plot model performance
-plot_model_performance(train_metrics, test_metrics)
+metrics = plot_model_performance(model_results)
+
+# Print detailed metrics
+for model_name, model_metrics in metrics.items():
+    print(f"\n{model_name} Performance:")
+    print(f"MAE: {model_metrics['mae']:.4f}")
+    print(f"RMSE: {model_metrics['rmse']:.4f}")
+    print(f"R²: {model_metrics['r2']:.4f}")
 
 # Create base directory structure
 base_dir = 'models'

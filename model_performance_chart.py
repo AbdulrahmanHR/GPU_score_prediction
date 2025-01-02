@@ -1,20 +1,32 @@
 # model_performance_chart
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-def plot_model_performance(train_metrics, test_metrics):
+def calculate_fold_metrics(predictions, true_values):
+    mae = mean_absolute_error(true_values, predictions)
+    rmse = np.sqrt(mean_squared_error(true_values, predictions))
+    r2 = r2_score(true_values, predictions)
+    return mae, rmse, r2
 
-    models = ['xgboost_lstm', 'lightgbm_lstm', 'xgboost_cnn', 'lightgbm_cnn']
-
-    # Prepare training data
-    train_mae = [train_metrics[model][0] for model in models]
-    train_rmse = [train_metrics[model][1] for model in models]
-    train_r2 = [train_metrics[model][2] for model in models]
+def plot_model_performance(model_results):
+    """
+    Plot performance metrics for models using K-fold cross-validation results.
     
-    # Prepare testing data
-    test_mae = [test_metrics[model][0] for model in models]
-    test_rmse = [test_metrics[model][1] for model in models]
-    test_r2 = [test_metrics[model][2] for model in models]
+    Args:
+        model_results (dict): Dictionary containing results from each model
+            Format: {model_name: {'predictions': [...], 'true_values': [...]}}
+    """
+    models = list(model_results.keys())
+    metrics = {}
+    
+    # Calculate metrics for each model
+    for model_name in models:
+        predictions = model_results[model_name]['predictions']
+        true_values = model_results[model_name]['true_values']
+        
+        mae, rmse, r2 = calculate_fold_metrics(predictions, true_values)
+        metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2}
 
     # Helper function for adding value labels
     def autolabel(rects, ax):
@@ -27,16 +39,19 @@ def plot_model_performance(train_metrics, test_metrics):
                        ha='center', va='bottom',
                        fontsize=8)
 
-    # Training MAE and RMSE plot
+    # MAE and RMSE plot
     x = np.arange(len(models))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    rects1 = ax.bar(x - width/2, train_mae, width, label='MAE', color='lightcoral')
-    rects2 = ax.bar(x + width/2, train_rmse, width, label='RMSE', color='lightblue')
+    mae_values = [metrics[model]['mae'] for model in models]
+    rmse_values = [metrics[model]['rmse'] for model in models]
+    
+    rects1 = ax.bar(x - width/2, mae_values, width, label='MAE', color='lightcoral')
+    rects2 = ax.bar(x + width/2, rmse_values, width, label='RMSE', color='lightblue')
 
     ax.set_ylabel('Error Value')
-    ax.set_title('Training Performance (MAE and RMSE)')
+    ax.set_title('Model Performance (MAE and RMSE) with K-fold CV')
     ax.set_xticks(x)
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
@@ -46,54 +61,24 @@ def plot_model_performance(train_metrics, test_metrics):
     autolabel(rects2, ax)
 
     plt.tight_layout()
-    plt.savefig('training_performance_mae_rmse.png')
+    plt.savefig('performance_mae_rmse_kfold.png')
     plt.close()
 
-    # Testing MAE and RMSE plot
+    # R² plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    rects1 = ax.bar(x - width/2, test_mae, width, label='MAE', color='red')
-    rects2 = ax.bar(x + width/2, test_rmse, width, label='RMSE', color='blue')
-
-    ax.set_ylabel('Error Value')
-    ax.set_title('Testing Performance (MAE and RMSE)')
-    ax.set_xticks(x)
-    display_names = [model.replace('_', '/').upper() for model in models]
-    ax.set_xticklabels(display_names, rotation=45)    
-    ax.legend()
-
-    autolabel(rects1, ax)
-    autolabel(rects2, ax)
-
-    plt.tight_layout()
-    plt.savefig('testing_performance_mae_rmse.png')
-    plt.close()
-
-    # Training R² plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    rects = ax.bar(models, train_r2, color='lightgreen')
+    r2_values = [metrics[model]['r2'] for model in models]
+    rects = ax.bar(models, r2_values, color='lightgreen')
 
     ax.set_ylabel('R² Value')
-    ax.set_title('Training Performance (R²)')
+    ax.set_title('Model Performance (R²) with K-fold CV')
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
     autolabel(rects, ax)
 
     plt.tight_layout()
-    plt.savefig('training_performance_r2.png')
+    plt.savefig('performance_r2_kfold.png')
     plt.close()
-
-    # Testing R² plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    rects = ax.bar(models, test_r2, color='darkgreen')
-
-    ax.set_ylabel('R² Value')
-    ax.set_title('Testing Performance (R²)')
-    display_names = [model.replace('_', '/').upper() for model in models]
-    ax.set_xticklabels(display_names, rotation=45)    
     
-    autolabel(rects, ax)
-
-    plt.tight_layout()
-    plt.savefig('testing_performance_r2.png')
-    plt.close()
+    # Return metrics dictionary for further use if needed
+    return metrics
