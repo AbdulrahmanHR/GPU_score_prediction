@@ -1,179 +1,167 @@
+# app.py
 import streamlit as st
-import pandas as pd
-import joblib
-import json
-from inference import InferencePipeline
+from inference import GPUPredictor
+import os
 
-class GPUPredictorApp:
-    def __init__(self):
-        self.pipeline = InferencePipeline()
-        self.gpu_chips = []
-        self.load_models()
-        
-    def load_models(self):
-        """Load the saved model paths and initialize the pipeline"""
-        try:
-            model_paths = joblib.load('models/model_paths.pkl')
-            self.pipeline.load_models(model_paths)
-            
-            # Load known categories for GPU chips
-            with open(model_paths['data_processing']['known_categories'], 'r') as f:
-                known_categories = json.load(f)
-                self.gpu_chips = sorted(known_categories['gpuChip'])
-                
-        except FileNotFoundError:
-            st.error("Model files not found. Please ensure models are trained and saved first.")
-            st.stop()
-            
-    def create_input_dataframe(self, inputs):
-        """Create a pandas DataFrame from the input values"""
-        # Create initial DataFrame
-        df = pd.DataFrame([inputs])
-        
-        # Ensure columns are in the correct order
-        expected_columns = ['gpuChip', 'releaseYear', 'memSize', 'memType', 'bus',
-                          'memBusWidth', 'gpuClock', 'memClock', 'unifiedShader',
-                          'tmu', 'rop', 'manufacturer']
-        
-        # Verify all columns exist
-        for col in expected_columns:
-            if col not in df.columns:
-                st.error(f"Missing column: {col}")
-                return None
-                
-        return df[expected_columns]
+# Set page config
+st.set_page_config(
+    page_title="GPU Performance Predictor",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'About': "GPU Performance Predictor - Predict GPU performance using machine learning models"
+    }
+)
+
+# Custom CSS
+st.markdown("""
+    <style>
+    .stButton>button {
+        width: 100%;
+        margin-top: 20px;
+    }
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+def main():
+    st.title("🎮 GPU Performance Predictor")
+    st.markdown("Predict GPU performance using advanced machine learning models")
     
-    def run(self):
-        st.title("GPU Performance Predictor")
-        st.write("Enter GPU specifications to predict its performance score")
+    try:
+        # Initialize predictor
+        predictor = GPUPredictor()
+        categories = predictor.get_categories()
         
-        with st.form("prediction_form"):
-            col1, col2 = st.columns(2)
+        # Create tabs for input and about
+        tab1, tab2 = st.tabs(["Predictor", "About"])
+        
+        with tab1:
+            # Create input form
+            with st.expander("GPU Specifications", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    manufacturer = st.selectbox("Manufacturer", options=categories['manufacturer'])
+                    gpu_chip = st.selectbox("GPU Chip", options=categories['gpuChip'])
+                    mem_type = st.selectbox("Memory Type", options=categories['memType'])
+                    bus = st.selectbox("Bus Interface", options=categories['bus'])
+                
+                with col2:
+                    mem_size = st.number_input("Memory Size (GB)", min_value=1, max_value=48, value=8)
+                    mem_bus_width = st.number_input(
+                        "Memory Bus Width (bits)",
+                        min_value=32,
+                        max_value=768,
+                        value=256
+                    )
+                    
+                    gpu_clock = st.number_input(
+                        "GPU Clock (MHz)",
+                        min_value=100,
+                        max_value=3000,
+                        value=1500
+                    )
+                    
+                    mem_clock = st.number_input(
+                        "Memory Clock (MHz)",
+                        min_value=100,
+                        max_value=3000,
+                        value=1750
+                    )
+                
+                with col3:
+                    unified_shader = st.number_input("Unified Shaders", min_value=1, max_value=20000, value=2048)
+                    tmu = st.number_input(
+                        "Texture Mapping Units (TMUs)",
+                        min_value=1,
+                        max_value=1000,
+                        value=64
+                    )
+                    
+                    rop = st.number_input(
+                        "Render Output Units (ROPs)",
+                        min_value=1,
+                        max_value=500,
+                        value=32
+                    )
+                    
+                    release_year = st.number_input(
+                        "Release Year",
+                        min_value=2014,
+                        max_value=2025,
+                        value=2024
+                    )
             
-            with col1:
-                manufacturer = st.selectbox(
-                    "Manufacturer",
-                    options=["AMD", "Intel", "NVIDIA"]
-                )
-                
-                gpu_chip = st.selectbox(
-                    "GPU Chip Model",
-                    options=self.gpu_chips
-                )
-                
-                release_year = st.number_input(
-                    "Release Year",
-                    min_value=2000,
-                    max_value=2025,
-                    value=2023
-                )
-                
-                mem_size = st.number_input(
-                    "Memory Size (GB)",
-                    min_value=0,
-                    max_value=48,
-                    value=8
-                )
-                
-                mem_type = st.selectbox(
-                    "Memory Type",
-                    options=["GDDR6X", "GDDR6", "GDDR5X", "GDDR5", "HBM2", "HBM3"]
-                )
-                
-                bus = st.selectbox(
-                    "Bus Type",
-                    options=["PCIe 4.0 x16", "PCIe 3.0 x16", "PCIe 5.0 x16"]
-                )
-            
-            with col2:
-                mem_bus_width = st.number_input(
-                    "Memory Bus Width",
-                    min_value=64,
-                    max_value=768,
-                    value=256
-                )
-                
-                gpu_clock = st.number_input(
-                    "GPU Clock (MHz)",
-                    min_value=100,
-                    max_value=3000,
-                    value=1500
-                )
-                
-                mem_clock = st.number_input(
-                    "Memory Clock (MHz)",
-                    min_value=100,
-                    max_value=3000,
-                    value=1000
-                )
-                
-                unified_shader = st.number_input(
-                    "Unified Shaders",
-                    min_value=0,
-                    max_value=20000,
-                    value=3000
-                )
-                
-                tmu = st.number_input(
-                    "TMUs",
-                    min_value=0,
-                    max_value=1000,
-                    value=96
-                )
-                
-                rop = st.number_input(
-                    "ROPs",
-                    min_value=0,
-                    max_value=500,
-                    value=64
-                )
-            
-            submitted = st.form_submit_button("Predict Performance")
-            
-            if submitted:
-                input_data = {
-                    'manufacturer': manufacturer,
-                    'gpuChip': gpu_chip,
-                    'releaseYear': release_year,
-                    'memSize': mem_size,
-                    'memType': mem_type,
-                    'bus': bus,
-                    'memBusWidth': mem_bus_width,
-                    'gpuClock': gpu_clock,
-                    'memClock': mem_clock,
-                    'unifiedShader': unified_shader,
-                    'tmu': tmu,
-                    'rop': rop
-                }
-                
-                input_df = self.create_input_dataframe(input_data)
-                
-                if input_df is not None:
-                    try:
-                        predictions = self.pipeline.predict_all(input_df)
+            if st.button("🚀 Predict Performance"):
+                with st.spinner("Making predictions..."):
+                    input_data = {
+                        'manufacturer': manufacturer,
+                        'gpuChip': gpu_chip,
+                        'memType': mem_type,
+                        'bus': bus,
+                        'releaseYear': release_year,
+                        'memSize': mem_size,
+                        'memBusWidth': mem_bus_width,
+                        'gpuClock': gpu_clock,
+                        'memClock': mem_clock,
+                        'unifiedShader': unified_shader,
+                        'tmu': tmu,
+                        'rop': rop
+                    }
+                    
+                    predictions, original_values = predictor.predict(input_data)
+                    
+                    # Display predictions with improved visualization
+                    st.header("📊 Predicted Performance Scores")
+                    
+                    # Create metrics with color coding
+                    cols = st.columns(len(predictions))
+                    for col, (model_name, prediction) in zip(cols, predictions.items()):
+                        with col:
+                            delta_color = "normal" if prediction >= 50 else "off"
+                            st.metric(
+                                label=model_name.replace('_', ' ').title(),
+                                value=f"{prediction:.2f}",
+                                delta="Performance Score",
+                                delta_color=delta_color
+                            )
+                    
+                    # Display specifications in an organized manner
+                    with st.expander("Selected Specifications", expanded=True):
+                        specs_col1, specs_col2 = st.columns(2)
                         
-                        st.subheader("Predicted Performance Scores")
+                        with specs_col1:
+                            st.markdown("### 📝 Hardware Details")
+                            st.info(f"""
+                            - **Manufacturer:** {original_values['manufacturer']}
+                            - **GPU Chip:** {original_values['gpuChip']}
+                            - **Memory Type:** {original_values['memType']}
+                            - **Bus Interface:** {original_values['bus']}
+                            """)
                         
-                        # Create a DataFrame for the results
-                        results = pd.DataFrame({
-                            'Model': list(predictions.keys()),
-                            'Predicted Score': [pred[0] for pred in predictions.values()]
-                        })
-                        
-                        # Calculate average prediction
-                        avg_prediction = results['Predicted Score'].mean()
-                        
-                        # Display results
-                        st.dataframe(results.style.format({'Predicted Score': '{:.2f}'}))
-                        
-                        st.metric(
-                            label="Average Predicted Score",
-                            value=f"{avg_prediction:.2f}"
-                        )
-                        
-                    except Exception as e:
-                        st.error(f"Error during prediction: {str(e)}")
-
+                        with specs_col2:
+                            st.markdown("### ⚙️ Technical Specifications")
+                            st.info(f"""
+                            - **Memory:** {mem_size}GB @ {mem_clock}MHz
+                            - **Bus Width:** {mem_bus_width} bits
+                            - **GPU Clock:** {gpu_clock}MHz
+                            - **Processing Units:** {unified_shader} shaders, {tmu} TMUs, {rop} ROPs
+                            """)
+        
+        with tab2:
+            st.markdown("""
+                ### About GPU Performance Predictor
+            """)
+    
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        
 if __name__ == "__main__":
-    app = GPUPredictorApp()
-    app.run()
+    main()

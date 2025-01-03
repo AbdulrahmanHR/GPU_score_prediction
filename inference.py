@@ -1,123 +1,115 @@
-# inference
+# inference.py
 import pandas as pd
 import numpy as np
-from tensorflow.keras.models import load_model  # type: ignore
 import joblib
+import tensorflow as tf
+from tensorflow import keras
+import os
 import json
-from tensorflow.keras.losses import MeanSquaredError  # type: ignore
 
-
-class InferencePipeline:
-    def __init__(self):
-        self.models = {}
-        self.transformers = {}
-        self.known_categories = {}
+class GPUPredictor:
+    def __init__(self, base_dir='models'):
+        """Initialize the predictor with model directory path"""
+        self.base_dir = base_dir
+        self._load_components()
     
-    def load_models(self, model_paths):
-        """Load all necessary models and preprocessors"""
-        # Load known categories
-        with open(model_paths['data_processing']['known_categories'], 'r') as f:
-            self.known_categories = json.load(f)
+    def _load_components(self):
+        """Load all necessary components for prediction"""
+        try:
+            # Load encoders
+            self.label_encoders = {}
+            encoders_dir = os.path.join(self.base_dir, 'data_processing', 'encoders')
+            categorical_columns = ['gpuChip', 'bus', 'memType', 'manufacturer']
+            for col in categorical_columns:
+                encoder_path = os.path.join(encoders_dir, f'le_{col}.pkl')
+                self.label_encoders[col] = joblib.load(encoder_path)
+                
+                # Store the classes for each encoder
+                classes = self.label_encoders[col].classes_
+                setattr(self, f'{col}_classes', classes)
+            
+            # Load imputer and scaler
+            data_processing_dir = os.path.join(self.base_dir, 'data_processing')
+            self.knn_imputer = joblib.load(os.path.join(data_processing_dir, 'knn_imputer.pkl'))
+            self.scaler = joblib.load(os.path.join(data_processing_dir, 'scaler.pkl'))
+            
+            # Load models
+            self.models = {}
+            model_types = ['xgboost_lstm', 'lightgbm_lstm', 'xgboost_cnn', 'lightgbm_cnn']
+            
+            for model_type in model_types:
+                model_dir = os.path.join(self.base_dir, model_type)
+                if os.path.exists(model_dir):
+                    self.models[model_type] = {
+                        'feature_extractor': joblib.load(os.path.join(model_dir, 'feature_extractor.pkl')),
+                        'predictor': keras.models.load_model(os.path.join(model_dir, 'predictor.keras'))
+                    }
         
-        # Load transformers
-        self.transformers = {
-            'label_encoders': {
-                'gpuChip': joblib.load(model_paths['data_processing']['label_encoders']['gpuChip']),
-                'bus': joblib.load(model_paths['data_processing']['label_encoders']['bus']),
-                'manufacturer': joblib.load(model_paths['data_processing']['label_encoders']['manufacturer']),
-                'memType': joblib.load(model_paths['data_processing']['label_encoders']['memType'])
-            },
-            'knn_imputer': joblib.load(model_paths['data_processing']['knn_imputer']),
-            'scaler': joblib.load(model_paths['data_processing']['scaler'])
+        except Exception as e:
+            raise Exception(f"Error loading model components: {str(e)}")
+    
+    def get_categories(self):
+        """Return the available categories for each categorical field"""
+        return {
+            'manufacturer': self.manufacturer_classes.tolist(),
+            'gpuChip': self.gpuChip_classes.tolist(),
+            'memType': self.memType_classes.tolist(),
+            'bus': self.bus_classes.tolist()
         }
-        
-        # Load models
-        for model_name, paths in model_paths.items():
-            if model_name not in ['data_processing']:
-                self.models[model_name] = {
-                    'feature_extractor': joblib.load(paths['feature_extractor']),
-                    'predictor': load_model(paths['predictor'], 
-                                         custom_objects={'mse': MeanSquaredError()})
-                }
-
-    def handle_unknown_categories(self, data, column):
-        """Handle unknown categories in categorical columns"""
-        known_cats = self.known_categories[column]
-        unknown_cats = set(data[column].unique()) - set(known_cats)
-        
-        if unknown_cats:
-            print(f"Warning: Unknown categories in {column}: {unknown_cats}")
-            print(f"Known categories are: {known_cats}")
-            # Replace unknown categories with the most similar known category
-            for unknown in unknown_cats:
-                # Find most similar known category using string similarity
-                similarities = [self._string_similarity(unknown, known) 
-                              for known in known_cats]
-                most_similar = known_cats[np.argmax(similarities)]
-                data[column] = data[column].replace(unknown, most_similar)
-                print(f"Replaced '{unknown}' with '{most_similar}'")
-        
-        return data
-
-    def _string_similarity(self, s1, s2):
-        """Calculate string similarity using Levenshtein distance"""
-        from difflib import SequenceMatcher
-        return SequenceMatcher(None, str(s1).lower(), str(s2).lower()).ratio()
     
-    def preprocess_input(self, input_data):
-        """Preprocess the input data using the saved transformers"""
-        # Make a copy of input data
-        data = input_data.copy()
-        
-        # Drop productName if exists
-        if 'productName' in data.columns:
-            data.drop(columns=['productName'], inplace=True)
-        
-        # Handle unknown categories and label encode
-        for column in ['gpuChip', 'bus', 'memType', 'manufacturer']:
-            data = self.handle_unknown_categories(data, column)
-            data[column] = self.transformers['label_encoders'][column].transform(data[column])
-        
-        # Apply KNN Imputation
-        impute_columns = ['memSize', 'memBusWidth', 'memClock']
-        data[impute_columns] = self.transformers['knn_imputer'].transform(data[impute_columns])
-        
-        # Standardize numerical features
-        numerical_features = ['releaseYear', 'memSize', 'memBusWidth', 'gpuClock', 
-                            'memClock', 'unifiedShader', 'tmu', 'rop']
-        data[numerical_features] = self.transformers['scaler'].transform(data[numerical_features])
-        
-        return data
-    
-    def predict(self, input_data, model_name):
-        """Make predictions using the specified model"""
-        if model_name not in self.models:
-            raise ValueError(f"Model {model_name} not found. Available models: {list(self.models.keys())}")
+    def prepare_input(self, input_data):
+        """Prepare input data for prediction"""
+        try:
+            # Create DataFrame with the correct column order
+            columns = [
+                'manufacturer', 'gpuChip', 'memType', 'bus', 'memSize', 
+                'memBusWidth', 'gpuClock', 'memClock', 'unifiedShader', 
+                'tmu', 'rop', 'releaseYear'
+            ]
             
-        # Preprocess input data
-        preprocessed_data = self.preprocess_input(input_data)
-        
-        # Extract features using the first stage model
-        feature_extractor = self.models[model_name]['feature_extractor']
-        predictor = self.models[model_name]['predictor']
-        
-        if 'xgboost' in model_name:
-            features = feature_extractor.apply(preprocessed_data)
-        else:  # lightgbm
-            features = feature_extractor.predict(preprocessed_data).reshape(-1, 1)
-        
-        # Reshape features for LSTM/CNN input
-        if 'lstm' in model_name or 'cnn' in model_name:
-            features = features.reshape((features.shape[0], features.shape[1], 1))
+            df = pd.DataFrame([input_data], columns=columns)
             
-        # Make final prediction
-        predictions = predictor.predict(features)
-        
-        return predictions.flatten()
+            # Store original categorical values
+            categorical_columns = ['manufacturer', 'gpuChip', 'memType', 'bus']
+            original_values = {col: df[col].values[0] for col in categorical_columns}
+            
+            # Encode categorical variables
+            for column, encoder in self.label_encoders.items():
+                df[column] = encoder.transform(df[column].astype(str))
+            
+            # Apply imputation
+            impute_columns = ["memSize", "memBusWidth", "memClock"]
+            df[impute_columns] = self.knn_imputer.transform(df[impute_columns])
+            
+            # Scale numerical features
+            numerical_columns = [
+                "memSize", "memBusWidth", "gpuClock", "memClock",
+                "unifiedShader", "tmu", "rop", "releaseYear"
+            ]
+            df[numerical_columns] = self.scaler.transform(df[numerical_columns])
+            
+            return df.values, original_values
+            
+        except Exception as e:
+            raise Exception(f"Error preparing input data: {str(e)}")
     
-    def predict_all(self, input_data):
+    def predict(self, input_data):
         """Make predictions using all available models"""
-        predictions = {}
-        for model_name in self.models.keys():
-            predictions[model_name] = self.predict(input_data, model_name)
-        return predictions
+        try:
+            # Prepare input
+            prepared_input, original_values = self.prepare_input(input_data)
+            
+            # Get predictions from all models
+            predictions = {}
+            for model_name, model in self.models.items():
+                # Get features from tree model
+                features = model['feature_extractor'].predict(prepared_input).reshape(-1, 1)
+                
+                # Get prediction from deep model
+                pred = model['predictor'].predict(features, verbose=0).flatten()[0]
+                predictions[model_name] = pred
+            
+            return predictions, original_values
+            
+        except Exception as e:
+            raise Exception(f"Error making predictions: {str(e)}")
