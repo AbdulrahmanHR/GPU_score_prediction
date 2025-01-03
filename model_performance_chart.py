@@ -29,26 +29,35 @@ def plot_model_performance(model_results):
         metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2}
 
     # Helper function for adding value labels
-    def autolabel(rects, ax):
+
+    def autolabel(rects, ax, is_percentage=False):
         for rect in rects:
             height = rect.get_height()
-            ax.annotate(f'{height:.2f}',
-                       xy=(rect.get_x() + rect.get_width()/2, height),
-                       xytext=(0, 3),
-                       textcoords="offset points",
-                       ha='center', va='bottom',
-                       fontsize=8)
+            if is_percentage:
+                ax.annotate(f'{height:.2f}%',  # Format as percentage with 2 decimal places
+                            xy=(rect.get_x() + rect.get_width()/2, height),
+                            xytext=(0, 3),
+                            textcoords="offset points",
+                            ha='center', va='bottom',
+                            fontsize=8)
+            else:
+                ax.annotate(f'{height:.2f}',
+                            xy=(rect.get_x() + rect.get_width()/2, height),
+                            xytext=(0, 3),
+                            textcoords="offset points",
+                            ha='center', va='bottom',
+                            fontsize=8)
 
     # MAE and RMSE plot
     x = np.arange(len(models))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    mae_values = [metrics[model]['mae'] for model in models]
-    rmse_values = [metrics[model]['rmse'] for model in models]
+    mae_values = [metrics[model]['mae']* 1000  for model in models]
+    rmse_values = [metrics[model]['rmse']* 1000  for model in models]
     
-    rects1 = ax.bar(x - width/2, mae_values, width, label='MAE', color='lightcoral')
-    rects2 = ax.bar(x + width/2, rmse_values, width, label='RMSE', color='lightblue')
+    rects1 = ax.bar(x - width/2, mae_values, width, label='MAE', color='red')
+    rects2 = ax.bar(x + width/2, rmse_values, width, label='RMSE', color='blue')
 
     ax.set_ylabel('Error Value')
     ax.set_title('Model Performance (MAE and RMSE) with K-fold CV')
@@ -66,7 +75,7 @@ def plot_model_performance(model_results):
 
     # R² plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    r2_values = [metrics[model]['r2'] for model in models]
+    r2_values = [metrics[model]['r2'] * 100 for model in models]
     rects = ax.bar(models, r2_values, color='lightgreen')
 
     ax.set_ylabel('R² Value')
@@ -74,7 +83,7 @@ def plot_model_performance(model_results):
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
-    autolabel(rects, ax)
+    autolabel(rects, ax, is_percentage=True)  # Set is_percentage to True for R² plot
 
     plt.tight_layout()
     plt.savefig('performance_r2_kfold.png')
