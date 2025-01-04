@@ -91,7 +91,7 @@ class HybridModels:
     def train_xgboost_model(self, X_train, X_val, y_train, y_val):
         params = {
             'n_estimators': 500,
-            'max_depth': 15,
+            'max_depth': 25,
             'learning_rate': 0.01,
             'colsample_bytree': 0.8,
             'subsample': 0.8,
@@ -161,11 +161,11 @@ class HybridModels:
             tree_model = tree_model_func(X_train, X_val, y_train, y_val)
             
             # Generate features
-            features_train = tree_model.predict(X_train).reshape(-1, 1)
-            features_val = tree_model.predict(X_val).reshape(-1, 1)
+            features_train = tree_model.predict(X_train).reshape(-1, 1, 1)  # Change reshape
+            features_val = tree_model.predict(X_val).reshape(-1, 1, 1)      # Change reshape
             
             # Create and train deep model
-            deep_model = deep_model_func((features_train.shape[1], 1))
+            deep_model = deep_model_func((1, 1))
             deep_model, predictions, true_values = self.train_deep_model(
                 deep_model,
                 features_train,

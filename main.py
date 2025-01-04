@@ -22,6 +22,7 @@ def create_directory_structure():
 
 def save_data_processing_components(data_prep, encoders_dir, data_processing_dir):
     """Save all data preprocessing components"""
+    data_prep.save_feature_order(os.path.join(data_processing_dir, 'feature_order.json'))
     # Save label encoders
     for column, encoder in data_prep.label_encoders.items():
         joblib.dump(encoder, os.path.join(encoders_dir, f'le_{column}.pkl'))

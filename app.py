@@ -54,42 +54,54 @@ def main():
                     bus = st.selectbox("Bus Interface", options=categories['bus'])
                 
                 with col2:
-                    mem_size = st.number_input("Memory Size (GB)", min_value=1, max_value=48, value=8)
+                    mem_size = st.number_input(
+                        "Memory Size (GB)",
+                        min_value=1, 
+                        max_value=48, 
+                        value=8
+                    )
+                    
                     mem_bus_width = st.number_input(
                         "Memory Bus Width (bits)",
                         min_value=32,
                         max_value=768,
-                        value=256
+                        value=128
                     )
                     
                     gpu_clock = st.number_input(
                         "GPU Clock (MHz)",
                         min_value=100,
-                        max_value=3000,
-                        value=1500
+                        max_value=4000,
+                        value=1925
                     )
                     
                     mem_clock = st.number_input(
                         "Memory Clock (MHz)",
                         min_value=100,
-                        max_value=3000,
-                        value=1750
+                        max_value=4000,
+                        value=2250
                     )
                 
                 with col3:
-                    unified_shader = st.number_input("Unified Shaders", min_value=1, max_value=20000, value=2048)
+                    unified_shader = st.number_input(
+                        "Unified Shaders", 
+                        min_value=1, 
+                        max_value=20000, 
+                        value=3840
+                    )
+                    
                     tmu = st.number_input(
                         "Texture Mapping Units (TMUs)",
                         min_value=1,
                         max_value=1000,
-                        value=64
+                        value=120
                     )
                     
                     rop = st.number_input(
                         "Render Output Units (ROPs)",
                         min_value=1,
                         max_value=500,
-                        value=32
+                        value=48
                     )
                     
                     release_year = st.number_input(
