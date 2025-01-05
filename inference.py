@@ -74,9 +74,6 @@ class GPUPredictor:
             original_values = {col: df[col].iloc[0] if col in df else None 
                              for col in self.feature_order}
             
-            # Add dummy score column for scaler
-            df['score'] = 0
-            
             # Encode categorical variables
             for column in self.categorical_columns:
                 df[column] = self.label_encoders[column].transform(df[column].astype(str))
@@ -87,11 +84,9 @@ class GPUPredictor:
             df[impute_columns] = self.knn_imputer.transform(impute_data)
             
             # Scale numerical features
-            scale_columns = self.numerical_columns + ['score']
-            scale_data = df[scale_columns].copy()
-            df[scale_columns] = self.scaler.transform(scale_data)
+            df[self.numerical_columns] = self.scaler.transform(df[self.numerical_columns])
             
-            # Ensure correct column order and drop score
+            # Ensure correct column order
             df = df[self.feature_order]
             
             return df.values, original_values

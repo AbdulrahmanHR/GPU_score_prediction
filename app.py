@@ -1,4 +1,5 @@
 # app.py
+# streamlit run app.py
 import streamlit as st
 from inference import GPUPredictor
 import numpy as np
@@ -239,6 +240,19 @@ def main():
         with tab2:
             st.markdown("""
                 ### About GPU Performance Predictor
+                                
+                This application uses machine learning and deep learning models to predict GPU performance based on hardware specifications. 
+                The prediction system combines multiple models:
+                
+                - **XGBoost + LSTM**: Gradient boosting combined with long short-term memory networks
+                - **LightGBM + LSTM**: Light gradient boosting with LSTM
+                - **XGBoost + CNN**: Gradient boosting with convolutional neural networks
+                - **LightGBM + CNN**: Light gradient boosting with CNN
+                
+                #### How to Use
+                1. Enter your GPU specifications in the Predictor tab
+                2. Click "Predict Performance"
+                3. View the predicted performance scores from different models
             """)
     
     except Exception as e:
