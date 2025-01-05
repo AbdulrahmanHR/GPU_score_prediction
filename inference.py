@@ -1,3 +1,4 @@
+# inference.py
 import joblib
 import numpy as np
 import pandas as pd
@@ -46,6 +47,9 @@ class GPUPredictor:
                     'feature_extractor': joblib.load(os.path.join(model_dir, 'feature_extractor.pkl')),
                     'predictor': keras.models.load_model(os.path.join(model_dir, 'predictor.keras'))
                 }
+                
+            # Load score scaler
+            self.score_scaler = joblib.load(os.path.join(data_processing_dir, 'score_scaler.pkl'))
                 
         except Exception as e:
             raise Exception(f"Error loading models and components: {str(e)}")
@@ -98,21 +102,17 @@ class GPUPredictor:
     def predict(self, input_data):
         """Make predictions using all models."""
         try:
-            # Prepare input data
             prepared_input, original_values = self._prepare_input(input_data)
             
-            # Make predictions with each model
             predictions = {}
             for model_type, model_dict in self.models.items():
-                # Get tree model predictions
                 tree_predictions = model_dict['feature_extractor'].predict(prepared_input)
-                
-                # Reshape for deep model
                 deep_input = tree_predictions.reshape(-1, 1, 1)
-                
-                # Get final predictions
                 final_prediction = model_dict['predictor'].predict(deep_input).flatten()[0]
-                predictions[model_type] = final_prediction * 1000  # Scale back predictions
+                
+                # Inverse transform the prediction using score_scaler
+                scaled_prediction = self.score_scaler.inverse_transform([[final_prediction]])[0][0]
+                predictions[model_type] = scaled_prediction
             
             return predictions, original_values
             

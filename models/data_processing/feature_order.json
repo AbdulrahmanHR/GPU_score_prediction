@@ -1,1 +1,32 @@
-{"feature_order": ["gpuChip", "memSize", "memBusWidth", "gpuClock", "memClock", "memType", "bus", "unifiedShader", "tmu", "rop", "manufacturer", "releaseYear"], "categorical_columns": ["gpuChip", "bus", "memType", "manufacturer"], "numerical_columns": ["memSize", "memBusWidth", "gpuClock", "memClock", "unifiedShader", "tmu", "rop", "releaseYear"]}
+{
+    "feature_order": [
+        "gpuChip",
+        "memSize",
+        "memBusWidth",
+        "gpuClock",
+        "memClock",
+        "memType",
+        "bus",
+        "unifiedShader",
+        "tmu",
+        "rop",
+        "manufacturer",
+        "releaseYear"
+    ],
+    "categorical_columns": [
+        "gpuChip",
+        "bus",
+        "memType",
+        "manufacturer"
+    ],
+    "numerical_columns": [
+        "memSize",
+        "memBusWidth",
+        "gpuClock",
+        "memClock",
+        "unifiedShader",
+        "tmu",
+        "rop",
+        "releaseYear"
+    ]
+}

@@ -16,45 +16,68 @@ class HybridModels:
         self.y = data["score"].values
         self.n_splits = n_splits
         self.kf = KFold(n_splits=n_splits, shuffle=True, random_state=32)
+        self.feature_names = data.drop(columns=["score"]).columns.tolist()
+        
+        # Define feature weights
+        self.feature_weights = {
+            'memSize': 3.0,       # 3x more important
+            'gpuClock': 2.5,      # 2.5x more important
+            'unifiedShader': 2.0  # 2x more important
+        }
+        
+        # Convert to list matching feature order
+        self.feature_weight_list = [self.feature_weights.get(feat, 1.0) for feat in self.feature_names]
     
     def create_lstm_model(self, input_shape):
-        model = Sequential([
-            Input(shape=input_shape),
-            LSTM(256, return_sequences=True, activation='relu'),
-            BatchNormalization(),
-            Dropout(0.3),
-            LSTM(128, activation='relu'),
-            BatchNormalization(),
-            Dropout(0.2),
-            Dense(64, activation='relu'),
-            BatchNormalization(),
-            Dense(32, activation='relu'),
-            Dense(1)
-        ])
+        inputs = Input(shape=input_shape)
+
+        # Apply feature weights through attention mechanism
+        attention_weights = tf.constant(self.feature_weight_list, dtype=tf.float32)
+        attention_weights = tf.reshape(attention_weights, (1, 1, -1))  # Reshape for broadcasting
+        weighted_inputs = tf.keras.layers.Multiply()([inputs, attention_weights])  # Use Keras Multiply layer
         
-        optimizer = Adam(learning_rate=0.001)
-        model.compile(optimizer=optimizer, loss='huber')  # Huber loss is more robust to outliers
-        return model
-    
-    def create_cnn_model(self, input_shape):
-        model = Sequential([
-            Input(shape=input_shape),
-            Conv1D(256, kernel_size=3, activation='relu', padding='same'),
-            BatchNormalization(),
-            Dropout(0.3),
-            Conv1D(128, kernel_size=3, activation='relu', padding='same'),
-            BatchNormalization(),
-            Dropout(0.2),
-            Flatten(),
-            Dense(64, activation='relu'),
-            BatchNormalization(),
-            Dense(32, activation='relu'),
-            Dense(1)
-        ])
+        x = LSTM(256, return_sequences=True, activation='relu')(weighted_inputs)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = LSTM(128, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.2)(x)
+        x = Dense(64, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dense(32, activation='relu')(x)
+        outputs = Dense(1)(x)
         
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
         optimizer = Adam(learning_rate=0.001)
         model.compile(optimizer=optimizer, loss='huber')
         return model
+
+    
+    def create_cnn_model(self, input_shape):
+        inputs = Input(shape=input_shape)
+
+        # Apply feature weights through attention mechanism
+        attention_weights = tf.constant(self.feature_weight_list, dtype=tf.float32)
+        attention_weights = tf.reshape(attention_weights, (1, 1, -1))  # Reshape for broadcasting
+        weighted_inputs = tf.keras.layers.Multiply()([inputs, attention_weights])  # Use Keras Multiply layer
+        
+        x = Conv1D(256, kernel_size=3, activation='relu', padding='same')(weighted_inputs)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = Conv1D(128, kernel_size=3, activation='relu', padding='same')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.2)(x)
+        x = Flatten()(x)
+        x = Dense(64, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dense(32, activation='relu')(x)
+        outputs = Dense(1)(x)
+        
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        optimizer = Adam(learning_rate=0.001)
+        model.compile(optimizer=optimizer, loss='huber')
+        return model
+
     
     def train_deep_model(self, model, features_train, features_val, y_train, y_val, model_name, epochs=100, batch_size=32):
         callbacks = [
@@ -107,7 +130,8 @@ class HybridModels:
         model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
-            verbose=0
+            verbose=0,
+            feature_weights=self.feature_weight_list
         )
         return model
     
@@ -122,7 +146,8 @@ class HybridModels:
             'bagging_freq': 5,
             'min_child_samples': 20,
             'reg_alpha': 0.1,
-            'reg_lambda': 1
+            'reg_lambda': 1,
+            'feature_contrib': self.feature_weight_list  # Adding feature weights
         }
         
         model = lgb.LGBMRegressor(**params)
@@ -161,8 +186,8 @@ class HybridModels:
             tree_model = tree_model_func(X_train, X_val, y_train, y_val)
             
             # Generate features
-            features_train = tree_model.predict(X_train).reshape(-1, 1, 1)  # Change reshape
-            features_val = tree_model.predict(X_val).reshape(-1, 1, 1)      # Change reshape
+            features_train = tree_model.predict(X_train).reshape(-1, 1, 1)
+            features_val = tree_model.predict(X_val).reshape(-1, 1, 1)
             
             # Create and train deep model
             deep_model = deep_model_func((1, 1))
