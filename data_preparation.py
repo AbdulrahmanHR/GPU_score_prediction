@@ -1,31 +1,39 @@
 # data_preparation.py
+import os
+import json
+import warnings
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import KNNImputer
 import joblib
-import os
-import json
-import warnings
 
+# Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
 class DataPreparation:
     def __init__(self, file_path):
-        """Initialize data preparation with file path and necessary components."""
+        """
+        Initialize the data preparation pipeline.
+        
+        Args:
+            file_path: Path to the CSV file containing GPU specifications data
+        """
         self.file_path = file_path
         self.data = None
         self.label_encoders = {}
         self.knn_imputer = None
         self.scaler = None
-        self.score_scaler = None 
+        self.score_scaler = None
         
-        # Define column order that will be used consistently
+        # Define consistent column ordering for processing
         self.feature_order = [
             'gpuChip', 'memSize', 'memBusWidth', 'gpuClock', 'memClock',
             'memType', 'bus', 'unifiedShader', 'tmu', 'rop',
             'manufacturer', 'releaseYear'
         ]
+        
+        # Separate features by type for appropriate processing
         self.categorical_columns = ['gpuChip', 'bus', 'memType', 'manufacturer']
         self.numerical_columns = [
             'memSize', 'memBusWidth', 'gpuClock', 'memClock',
@@ -33,12 +41,16 @@ class DataPreparation:
         ]
 
     def handle_outliers(self, columns, method="percentile", n_std=3):
-        """Remove or cap outliers based on the chosen method."""
+        """
+        Remove or cap outliers in specified columns using selected method.
+        """
         for col in columns:
             if method == "percentile":
+                # Use 1st and 99th percentiles as bounds
                 lower_bound = self.data[col].quantile(0.01)
                 upper_bound = self.data[col].quantile(0.99)
             elif method == "std":
+                # Use standard deviation based bounds
                 mean = self.data[col].mean()
                 std = self.data[col].std()
                 lower_bound = mean - n_std * std
@@ -46,36 +58,47 @@ class DataPreparation:
             else:
                 raise ValueError("Invalid method. Choose 'percentile' or 'std'.")
 
+            # Clip values to bounds
             self.data[col] = self.data[col].clip(lower_bound, upper_bound)
 
     def preprocess_data(self):
-        """Preprocess the data with proper scaling and encoding."""
-        # Load data
+        """
+        Execute the complete data preprocessing pipeline.
+        
+        Steps:
+        1. Load and clean data
+        2. Handle outliers
+        3. Encode categorical features
+        4. Impute missing values
+        5. Scale numerical features
+        6. Verify scaling accuracy
+        """
+        # Load data from CSV
         self.data = pd.read_csv(self.file_path)
 
-        # Drop productName if it exists
+        # Remove product name if present (not used for prediction)
         if "productName" in self.data.columns:
             self.data.drop(columns=["productName"], inplace=True)
 
-        # Store original score values for reference
+        # Store original scores for verification
         original_score = self.data['score'].copy()
 
-        # Handle outliers in numerical columns and score separately
+        # Handle outliers separately for features and target
         self.handle_outliers(self.numerical_columns)
         self.handle_outliers(['score'])
 
-        # Label encode categorical features
+        # Encode categorical features using label encoding
         for column in self.categorical_columns:
             self.label_encoders[column] = LabelEncoder()
             self.data[column] = self.label_encoders[column].fit_transform(self.data[column])
 
-        # Improve imputation with iterative KNN
+        # Impute missing values using KNN
         self.knn_imputer = KNNImputer(n_neighbors=5, weights='distance')
         impute_columns = ["memSize", "memBusWidth", "memClock"]
         impute_data = self.data[impute_columns].copy()
         self.data[impute_columns] = self.knn_imputer.fit_transform(impute_data)
 
-        # Initialize scalers
+        # Initialize scalers for features and target
         self.scaler = StandardScaler()
         self.score_scaler = StandardScaler()
 
@@ -83,31 +106,42 @@ class DataPreparation:
         scale_data = self.data[self.numerical_columns].copy()
         self.data[self.numerical_columns] = self.scaler.fit_transform(scale_data)
 
-        # Scale score separately
+        # Scale target variable separately
         score_data = self.data[['score']].copy()
         self.data['score'] = self.score_scaler.fit_transform(score_data)
 
-        # Verify scaling with relaxed precision
+        # Verify scaling accuracy
         score_inverse = self.score_scaler.inverse_transform(
             self.data[['score']]
         ).flatten()
         
-        # Check if the relative difference is within acceptable bounds
+        # Check relative difference between original and reconstructed values
         relative_diff = np.abs(score_inverse - original_score) / np.maximum(np.abs(original_score), 1e-10)
         max_relative_diff = np.max(relative_diff)
         
-        if max_relative_diff > 0.3:  # Allow up to 30% relative difference
+        # Warn if scaling error is too large
+        if max_relative_diff > 0.3:  # 30% threshold
             warnings.warn(f"Large relative difference in score scaling detected: {max_relative_diff}")
 
-        # Ensure correct column order
+        # Return data with consistent column ordering
         return self.data[self.feature_order + ['score']]
 
     def save_feature_order(self, path):
-        """Save feature order and all necessary components for inference."""
-        # Create directory if it doesn't exist
+        """
+        Save all preprocessing components and verification data for inference.
+        
+        Args:
+            path: Path to save the feature order JSON file
+            
+        Saves:
+        - Feature order and column types
+        - Score scaler for target variable transformation
+        - Verification data for scaling checks
+        """
+        # Ensure directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
-        # Save feature information
+        # Save feature configuration
         with open(path, 'w') as f:
             json.dump({
                 'feature_order': self.feature_order,
@@ -115,11 +149,11 @@ class DataPreparation:
                 'numerical_columns': self.numerical_columns
             }, f, indent=4)
         
-        # Save score scaler separately
+        # Save score scaler for inference
         score_scaler_path = os.path.join(os.path.dirname(path), 'score_scaler.pkl')
         joblib.dump(self.score_scaler, score_scaler_path)
         
-        # Save verification data
+        # Save verification data for scaling checks
         verification_data = {
             'original_scale_example': float(self.score_scaler.inverse_transform([[1.0]])[0][0]),
             'scaled_example': float(self.score_scaler.transform([[1000.0]])[0][0])

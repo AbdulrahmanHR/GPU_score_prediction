@@ -4,14 +4,13 @@ import streamlit as st
 from inference import GPUPredictor
 import numpy as np
 import logging
-import joblib
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
 
 # Basic page configuration
 st.set_page_config(
-    page_title="GPU Performance Predictor",
+    page_title="GPU Performance Predictor 🎮",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -218,6 +217,12 @@ def main():
                 - LightGBM + LSTM: Light gradient boosting with LSTM
                 - XGBoost + CNN: Gradient boosting with convolutional neural networks
                 - LightGBM + CNN: Light gradient boosting with CNN
+                
+                ### Use Cases
+                - Compare different GPU configurations
+                - Evaluate potential upgrades
+                - Assess performance implications of specification changes
+                - Benchmark custom GPU configurations
             """)
     
     except Exception as e:
