@@ -2,7 +2,6 @@
 import xgboost as xgb
 import lightgbm as lgb
 import tensorflow as tf
-from keras.models import Sequential # type: ignore
 from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout, BatchNormalization # type: ignore
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau # type: ignore
 from keras.optimizers import Adam # type: ignore
@@ -20,9 +19,12 @@ class HybridModels:
         
         # Define feature weights
         self.feature_weights = {
-            'memSize': 3.0,       # 3x more important
-            'gpuClock': 2.5,      # 2.5x more important
-            'unifiedShader': 2.0  # 2x more important
+            'memSize': 2,      
+            'gpuClock': 2,    
+            'unifiedShader': 1.7,  
+            'gpuChip': 1.3,      
+            'memBusWidth': 1.4,   
+            'memClock': 1.4  
         }
         
         # Convert to list matching feature order
@@ -79,7 +81,7 @@ class HybridModels:
         return model
 
     
-    def train_deep_model(self, model, features_train, features_val, y_train, y_val, model_name, epochs=100, batch_size=32):
+    def train_deep_model(self, model, features_train, features_val, y_train, y_val, model_name, epochs=150, batch_size=26):
         callbacks = [
             EarlyStopping(
                 monitor='val_loss',
@@ -114,8 +116,8 @@ class HybridModels:
     def train_xgboost_model(self, X_train, X_val, y_train, y_val):
         params = {
             'n_estimators': 500,
-            'max_depth': 25,
-            'learning_rate': 0.01,
+            'max_depth': 20,
+            'learning_rate': 0.005,
             'colsample_bytree': 0.8,
             'subsample': 0.8,
             'min_child_weight': 3,
@@ -138,7 +140,7 @@ class HybridModels:
     def train_lightgbm_model(self, X_train, X_val, y_train, y_val):
         params = {
             'n_estimators': 500,
-            'max_depth': 15,
+            'max_depth': 20,
             'learning_rate': 0.01,
             'num_leaves': 32,
             'feature_fraction': 0.7,

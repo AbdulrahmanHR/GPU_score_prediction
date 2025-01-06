@@ -7,16 +7,15 @@ def calculate_fold_metrics(predictions, true_values):
     mae = mean_absolute_error(true_values, predictions)
     rmse = np.sqrt(mean_squared_error(true_values, predictions))
     r2 = r2_score(true_values, predictions)
-    return mae, rmse, r2
+    mape = np.mean(np.abs((true_values - predictions) / true_values)) * 100
+    return mae, rmse, r2, mape
 
 def plot_model_performance(model_results):
-    """
-    Plot performance metrics for models using K-fold cross-validation results.
-    
-    Args:
-        model_results (dict): Dictionary containing results from each model
-            Format: {model_name: {'predictions': [...], 'true_values': [...]}}
-    """
+
+    # Create charts directory if it doesn't exist
+    import os
+    charts_dir = 'charts'
+    os.makedirs(charts_dir, exist_ok=True)
     models = list(model_results.keys())
     metrics = {}
     
@@ -25,11 +24,10 @@ def plot_model_performance(model_results):
         predictions = model_results[model_name]['predictions']
         true_values = model_results[model_name]['true_values']
         
-        mae, rmse, r2 = calculate_fold_metrics(predictions, true_values)
-        metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2}
+        mae, rmse, r2, mape = calculate_fold_metrics(predictions, true_values)
+        metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2, 'mape': mape}
 
     # Helper function for adding value labels
-
     def autolabel(rects, ax, is_percentage=False):
         for rect in rects:
             height = rect.get_height()
@@ -53,8 +51,8 @@ def plot_model_performance(model_results):
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    mae_values = [metrics[model]['mae']* 1000  for model in models]
-    rmse_values = [metrics[model]['rmse']* 1000  for model in models]
+    mae_values = [metrics[model]['mae'] * 1000 for model in models]
+    rmse_values = [metrics[model]['rmse'] * 1000 for model in models]
     
     rects1 = ax.bar(x - width/2, mae_values, width, label='MAE', color='red')
     rects2 = ax.bar(x + width/2, rmse_values, width, label='RMSE', color='blue')
@@ -70,23 +68,39 @@ def plot_model_performance(model_results):
     autolabel(rects2, ax)
 
     plt.tight_layout()
-    plt.savefig('performance_mae_rmse_kfold.png')
+    plt.savefig(os.path.join(charts_dir, 'performance_mae_rmse_kfold.png'))
     plt.close()
 
     # R² plot
     fig, ax = plt.subplots(figsize=(12, 6))
     r2_values = [metrics[model]['r2'] * 100 for model in models]
-    rects = ax.bar(models, r2_values, color='lightgreen')
+    rects = ax.bar(models, r2_values, color='limegreen')
 
-    ax.set_ylabel('R² Value')
+    ax.set_ylabel('R² Value (%)')
     ax.set_title('Model Performance (R²) with K-fold CV')
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
-    autolabel(rects, ax, is_percentage=True)  # Set is_percentage to True for R² plot
+    autolabel(rects, ax, is_percentage=True)
 
     plt.tight_layout()
-    plt.savefig('performance_r2_kfold.png')
+    plt.savefig(os.path.join(charts_dir, 'performance_r2_kfold.png'))
+    plt.close()
+
+    # MAPE plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    mape_values = [metrics[model]['mape'] for model in models]
+    rects = ax.bar(models, mape_values, color='indigo')
+
+    ax.set_ylabel('MAPE (%)')
+    ax.set_title('Model Performance (MAPE) with K-fold CV')
+    display_names = [model.replace('_', '/').upper() for model in models]
+    ax.set_xticklabels(display_names, rotation=45)    
+    
+    autolabel(rects, ax, is_percentage=True)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(charts_dir, 'performance_mape_kfold.png'))
     plt.close()
     
     # Return metrics dictionary for further use if needed

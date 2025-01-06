@@ -18,7 +18,7 @@ class DataPreparation:
         self.label_encoders = {}
         self.knn_imputer = None
         self.scaler = None
-        self.score_scaler = None  # Separate scaler for score column
+        self.score_scaler = None 
         
         # Define column order that will be used consistently
         self.feature_order = [
@@ -96,7 +96,7 @@ class DataPreparation:
         relative_diff = np.abs(score_inverse - original_score) / np.maximum(np.abs(original_score), 1e-10)
         max_relative_diff = np.max(relative_diff)
         
-        if max_relative_diff > 0.5:  # Allow up to 50% relative difference
+        if max_relative_diff > 0.3:  # Allow up to 30% relative difference
             warnings.warn(f"Large relative difference in score scaling detected: {max_relative_diff}")
 
         # Ensure correct column order

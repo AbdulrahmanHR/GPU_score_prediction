@@ -1,32 +1,3 @@
-{
-    "feature_order": [
-        "gpuChip",
-        "memSize",
-        "memBusWidth",
-        "gpuClock",
-        "memClock",
-        "memType",
-        "bus",
-        "unifiedShader",
-        "tmu",
-        "rop",
-        "manufacturer",
-        "releaseYear"
-    ],
-    "categorical_columns": [
-        "gpuChip",
-        "bus",
-        "memType",
-        "manufacturer"
-    ],
-    "numerical_columns": [
-        "memSize",
-        "memBusWidth",
-        "gpuClock",
-        "memClock",
-        "unifiedShader",
-        "tmu",
-        "rop",
-        "releaseYear"
-    ]
-}
+version https://git-lfs.github.com/spec/v1
+oid sha256:1f1ac3a22f4d9391a9ef60161e879181dc063c476d5d1bdabeb612cecfa9c2a6
+size 604

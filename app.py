@@ -1,23 +1,22 @@
 # app.py
-# streamlit run app.py
+# Run command: streamlit run app.py
 import streamlit as st
 from inference import GPUPredictor
 import numpy as np
 import logging
+import joblib
 
+# Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
 
-# Set page config
+# Basic page configuration
 st.set_page_config(
     page_title="GPU Performance Predictor",
     layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'About': "GPU Performance Predictor - Predict GPU performance using machine learning models"
-    }
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS with enhanced styling
+# Essential CSS styling - removed decorative elements, keeping only functional styles
 st.markdown("""
     <style>
     .stButton>button {
@@ -28,144 +27,127 @@ st.markdown("""
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-    }
-    /* Super-sized metric styling */
-    div.big-metric div[data-testid="stMetricValue"] {
-        font-size: 6rem !important;
-        font-weight: 900 !important;
-        color: #0f5fff !important;
-    }
-    div.big-metric div[data-testid="stMetricDelta"] {
-        font-size: 2.5rem !important;
-    }
-    div.big-metric div[data-testid="stMetricLabel"] {
-        font-size: 3rem !important;
-        font-weight: bold !important;
-    }
-    /* Additional emphasis for the container */
-    div.big-metric.super-big-metric {
-        padding: 2rem !important;
-        margin: 2rem 0 !important;
-    }
-    div.big-metric.super-big-metric div[data-testid="stMetricValue"] {
-        font-size: 7rem !important;
-        line-height: 1.2 !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# Custom numeric input using st.text_input to hide increment/decrement buttons
 def custom_number_input(label, value, min_value=None, max_value=None, help=None):
+    """
+    Custom numeric input function that provides better input validation
+    than standard Streamlit number input
+    """
     input_val = st.text_input(label, value=str(value), help=help)
     try:
-        # Convert the input to a number and enforce min/max constraints
         input_val = float(input_val)
-        if min_value is not None and input_val < min_value:
-            input_val = min_value
-        if max_value is not None and input_val > max_value:
-            input_val = max_value
+        # Apply min/max constraints if specified
+        if min_value is not None:
+            input_val = max(min_value, input_val)
+        if max_value is not None:
+            input_val = min(max_value, input_val)
         return input_val
     except ValueError:
         st.warning(f"Please enter a valid number for {label}")
         return value
 
 def main():
+    """Main application function"""
     st.title("GPU Performance Predictor")
     st.markdown("Predict GPU performance using hybrid ML/DL models")
     
     try:
-        # Initialize predictor
+        # Initialize the GPU predictor and get available categories
         predictor = GPUPredictor()
         categories = predictor.get_categories()
         
-        # Create tabs for input and about
+        # Create tabs for predictor and about section
         tab1, tab2 = st.tabs(["Predictor", "About"])
         
         with tab1:
-            # Create input form
+            # GPU specifications input form
             with st.expander("GPU Specifications", expanded=True):
+                # Divide form into three columns for better organization
                 col1, col2, col3 = st.columns(3)
                 
+                # Column 1: Categorical inputs
                 with col1:
-                    manufacturer_default = "NVIDIA"  # Replace with your desired default value
-                    gpu_chip_default = "AD106"   # Replace with your desired default value
-                    mem_type_default = "GDDR6"      # Replace with your desired default value
-                    bus_default = "PCIe 4.0 x16"        # Replace with your desired default value
-
+                    # Set default values for dropdown menus
+                    defaults = {
+                        'manufacturer': "NVIDIA",
+                        'gpu_chip': "AD106",
+                        'mem_type': "GDDR6",
+                        'bus': "PCIe 4.0 x16"
+                    }
+                    
+                    # Create dropdown menus with default values
                     manufacturer = st.selectbox(
                         "Manufacturer", 
                         options=categories['manufacturer'],
-                        index=categories['manufacturer'].index(manufacturer_default) if manufacturer_default in categories['manufacturer'] else 0,
+                        index=categories['manufacturer'].index(defaults['manufacturer']),
                         help="Select the GPU manufacturer"
                     )
-
+                    
                     gpu_chip = st.selectbox(
                         "GPU Chip", 
                         options=categories['gpuChip'],
-                        index=categories['gpuChip'].index(gpu_chip_default) if gpu_chip_default in categories['gpuChip'] else 0,
+                        index=categories['gpuChip'].index(defaults['gpu_chip']),
                         help="Select the GPU chip model"
                     )
-
+                    
                     mem_type = st.selectbox(
                         "Memory Type", 
                         options=categories['memType'],
-                        index=categories['memType'].index(mem_type_default) if mem_type_default in categories['memType'] else 0,
-                        help="Select the memory type (e.g., GDDR6)"
+                        index=categories['memType'].index(defaults['mem_type']),
+                        help="Select the memory type"
                     )
-
+                    
                     bus = st.selectbox(
                         "Bus Interface", 
                         options=categories['bus'],
-                        index=categories['bus'].index(bus_default) if bus_default in categories['bus'] else 0,
+                        index=categories['bus'].index(defaults['bus']),
                         help="Select the PCIe interface version"
                     )
                 
+                # Column 2: Memory and clock specifications
                 with col2:
                     mem_size = custom_number_input(
-                        "Memory Size (GB)", value=8, min_value=1, max_value=48,
+                        "Memory Size (GB)", 8, 1, 48,
                         help="Total video memory in gigabytes"
                     )
-
                     mem_bus_width = custom_number_input(
-                        "Memory Bus Width (bits)", value=128, min_value=32, max_value=768,
+                        "Memory Bus Width (bits)", 128, 32, 768,
                         help="Memory interface width in bits"
                     )
-
                     gpu_clock = custom_number_input(
-                        "GPU Clock (MHz)", value=1925, min_value=100, max_value=4000,
+                        "GPU Clock (MHz)", 1925, 100, 4000,
                         help="Base GPU clock speed in MHz"
                     )
-
                     mem_clock = custom_number_input(
-                        "Memory Clock (MHz)", value=2250, min_value=100, max_value=4000,
+                        "Memory Clock (MHz)", 2250, 100, 4000,
                         help="Memory clock speed in MHz"
                     )
                 
+                # Column 3: Processing units and release year
                 with col3:
                     unified_shader = custom_number_input(
-                        "Unified Shaders", value=3840, min_value=1, max_value=20000,
+                        "Unified Shaders", 3840, 1, 20000,
                         help="Number of shader processing units"
                     )
-
                     tmu = custom_number_input(
-                        "Texture Mapping Units (TMUs)", value=120, min_value=1, max_value=1000,
+                        "Texture Mapping Units (TMUs)", 120, 1, 1000,
                         help="Number of texture mapping units"
                     )
-
                     rop = custom_number_input(
-                        "Render Output Units (ROPs)", value=48, min_value=1, max_value=500,
+                        "Render Output Units (ROPs)", 48, 1, 500,
                         help="Number of render output units"
                     )
-
                     release_year = custom_number_input(
-                        "Release Year", value=2024, min_value=2014, max_value=2025,
+                        "Release Year", 2024, 2014, 2025,
                         help="GPU release year"
                     )
             
+            # Prediction button and results
             if st.button("🚀 Predict Performance"):
                 with st.spinner("Making predictions..."):
+                    # Prepare input data dictionary
                     input_data = {
                         'manufacturer': manufacturer,
                         'gpuChip': gpu_chip,
@@ -181,44 +163,32 @@ def main():
                         'rop': rop
                     }
                     
+                    # Get predictions and original values
                     predictions, original_values = predictor.predict(input_data)
-                    
-                    # Calculate average prediction
                     avg_prediction = np.mean(list(predictions.values()))
                     
-                    # Display predictions with improved visualization
+                    # Display individual model predictions
                     st.header("📊 Model Predictions")
-                    
-                    # Display individual predictions
                     cols = st.columns(len(predictions))
                     for col, (model_name, prediction) in zip(cols, predictions.items()):
                         with col:
-                            delta_color = "normal" if prediction >= 50 else "off"
                             st.metric(
                                 label=model_name.replace('_', ' ').title(),
                                 value=f"{int(prediction)}", 
-                                delta="Performance Score",
-                                delta_color=delta_color
+                                delta="Performance Score"
                             )
                     
-                    # Display average with bigger styling and integer value
+                    # Display average prediction
                     st.markdown("### 🎯 Overall Performance Score")
-                    avg_delta_color = "normal" if avg_prediction >= 50 else "off"
-                    
-                    # Wrap the metric in a div with enhanced custom CSS classes
-                    st.markdown('<div class="super-big-metric">', unsafe_allow_html=True)
                     st.metric(
                         label="Average Performance Score",
-                        value=f"{int(avg_prediction)}",  
-                        delta="Combined Model Prediction",
-                        delta_color=avg_delta_color
+                        value=f"{int(avg_prediction)}",
+                        delta="Combined Model Prediction"
                     )
-                    st.markdown('</div>', unsafe_allow_html=True)
                     
-                    # Display specifications in an organized manner
+                    # Display input specifications summary
                     with st.expander("Selected Specifications", expanded=True):
                         specs_col1, specs_col2 = st.columns(2)
-                        
                         with specs_col1:
                             st.markdown("### 📝 Hardware Details")
                             st.info(f"""
@@ -227,7 +197,6 @@ def main():
                             - **Memory Type:** {original_values['memType']}
                             - **Bus Interface:** {original_values['bus']}
                             """)
-                        
                         with specs_col2:
                             st.markdown("### ⚙️ Technical Specifications")
                             st.info(f"""
@@ -237,26 +206,22 @@ def main():
                             - **Processing Units:** {unified_shader} shaders, {tmu} TMUs, {rop} ROPs
                             """)
         
+        # About tab content
         with tab2:
             st.markdown("""
                 ### About GPU Performance Predictor
-                                
+                
                 This application uses machine learning and deep learning models to predict GPU performance based on hardware specifications. 
                 The prediction system combines multiple models:
                 
-                - **XGBoost + LSTM**: Gradient boosting combined with long short-term memory networks
-                - **LightGBM + LSTM**: Light gradient boosting with LSTM
-                - **XGBoost + CNN**: Gradient boosting with convolutional neural networks
-                - **LightGBM + CNN**: Light gradient boosting with CNN
-                
-                #### How to Use
-                1. Enter your GPU specifications in the Predictor tab
-                2. Click "Predict Performance"
-                3. View the predicted performance scores from different models
+                - XGBoost + LSTM: Gradient boosting combined with long short-term memory networks
+                - LightGBM + LSTM: Light gradient boosting with LSTM
+                - XGBoost + CNN: Gradient boosting with convolutional neural networks
+                - LightGBM + CNN: Light gradient boosting with CNN
             """)
     
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
-        
+
 if __name__ == "__main__":
     main()
