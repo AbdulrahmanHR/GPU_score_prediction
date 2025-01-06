@@ -6,7 +6,6 @@ GPU Performance Predictor is a hybrid machine learning and deep learning applica
 ## Features
 - **Hybrid Models**: Combines XGBoost/LightGBM with LSTM/CNN architectures for enhanced prediction accuracy.
 - **Interactive Web Interface**: Provides an intuitive interface using Streamlit for users to input GPU specifications and get predictions.
-- **Customizable Components**: Includes modular data preparation, model training, and inference pipelines for easy customization.
 
 ## Directory Structure
 ```
@@ -38,16 +37,16 @@ GPU Performance Predictor is a hybrid machine learning and deep learning applica
    streamlit run app.py
    ```
 
-## How to Run the Code
+## Usage
 
-### Training the Models
-To train the models and save preprocessing components:
+### Training Models
+Run `main.py` to train the hybrid models and save preprocessing components and trained models to the `models/` directory:
 ```bash
 python main.py
 ```
 
-### Running the Web Application
-To launch the interactive web interface:
+### Web Interface
+Use the Streamlit interface to input GPU specifications and view predictions:
 ```bash
 streamlit run app.py
 ```
@@ -75,20 +74,6 @@ input_data = {
 
 predictions, original_values = predictor.predict(input_data)
 print(predictions)
-```
-
-## Usage
-
-### Training Models
-Run `main.py` to train the hybrid models and save preprocessing components and trained models to the `models/` directory:
-```bash
-python main.py
-```
-
-### Web Interface
-Use the Streamlit interface to input GPU specifications and view predictions:
-```bash
-streamlit run app.py
 ```
 
 ## Model Architectures
