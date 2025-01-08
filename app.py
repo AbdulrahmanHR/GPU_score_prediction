@@ -5,17 +5,26 @@ from inference import GPUPredictor
 import numpy as np
 import logging
 
+# GPU Performance Tiers
+GPU_TIERS = {
+    'Entry-level': (1000, 5000, "Basic computing, light gaming, media playback"),
+    'Budget': (5000, 12000, "1080p gaming, basic content creation"),
+    'Mid-range': (12000, 20000, "High refresh 1080p/1440p gaming, content creation"),
+    'High-end': (20000, 30000, "4K gaming, professional workloads"),
+    'Enthusiast': (30000, float('inf'), "4K high refresh gaming, AI/ML, professional rendering")
+}
+
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
 
 # Basic page configuration
 st.set_page_config(
-    page_title="GPU Performance Predictor 🎮",
+    page_title="GPU Performance Predictor",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Essential CSS styling - removed decorative elements, keeping only functional styles
+# Essential CSS styling
 st.markdown("""
     <style>
     .stButton>button {
@@ -28,6 +37,13 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
+
+def get_performance_tier(score):
+    """Determine the performance tier based on G3D Mark score"""
+    for tier, (min_score, max_score, description) in GPU_TIERS.items():
+        if min_score <= score < max_score:
+            return tier, description
+    return "Enthusiast", GPU_TIERS['Enthusiast'][2]
 
 def custom_number_input(label, value, min_value=None, max_value=None, help=None):
     """
@@ -177,13 +193,16 @@ def main():
                                 delta="Performance Score"
                             )
                     
-                    # Display average prediction
+                    # Display average prediction with performance tier
                     st.markdown("### 🎯 Overall Performance Score")
+                    avg_score = int(avg_prediction)
+                    tier, tier_description = get_performance_tier(avg_score)
                     st.metric(
                         label="Average Performance Score",
-                        value=f"{int(avg_prediction)}",
-                        delta="Combined Model Prediction"
+                        value=f"{avg_score}",
+                        delta=f"{tier} Tier"
                     )
+                    st.info(f"This GPU falls in the **{tier}** category: {tier_description}")
                     
                     # Display input specifications summary
                     with st.expander("Selected Specifications", expanded=True):
@@ -207,9 +226,8 @@ def main():
         
         # About tab content
         with tab2:
+            st.markdown("### About GPU Performance Predictor")
             st.markdown("""
-                ### About GPU Performance Predictor
-                
                 This application uses machine learning and deep learning models to predict GPU performance based on hardware specifications. 
                 The prediction system combines multiple models:
                 
@@ -217,7 +235,16 @@ def main():
                 - LightGBM + LSTM: Light gradient boosting with LSTM
                 - XGBoost + CNN: Gradient boosting with convolutional neural networks
                 - LightGBM + CNN: Light gradient boosting with CNN
-                
+            """)
+            
+            st.markdown("### Performance Tiers")
+            for tier, (min_score, max_score, description) in GPU_TIERS.items():
+                st.info(f"""
+                **{tier}** (Score: {min_score:,} - {max_score if max_score != float('inf') else '∞'})
+                {description}
+                """)
+            
+            st.markdown("""
                 ### Use Cases
                 - Compare different GPU configurations
                 - Evaluate potential upgrades
