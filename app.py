@@ -7,11 +7,13 @@ import logging
 
 # GPU Performance Tiers
 GPU_TIERS = {
-    'Entry-level': (1000, 5000, "Basic computing, light gaming, media playback"),
-    'Budget': (5000, 12000, "1080p gaming, basic content creation"),
-    'Mid-range': (12000, 20000, "High refresh 1080p/1440p gaming, content creation"),
-    'High-end': (20000, 30000, "4K gaming, professional workloads"),
-    'Enthusiast': (30000, float('inf'), "4K high refresh gaming, AI/ML, professional rendering")
+    'Entry-level': (1000, 4000, "Basic computing, media playback, lightweight office work"),
+    'Budget': (4000, 8000, "Casual gaming at 1080p, basic content creation"),
+    'Mid-range': (8000, 15000, "1080p/1440p gaming, content creation"),
+    'Performance': (15000, 20000, "High refresh 1440p gaming, professional workloads"),
+    'High-end': (20000, 25000, "4K gaming, professional content creation"),
+    'Premium': (25000, 35000, "4K high refresh gaming, AI/ML development"),
+    'Enthusiast': (35000, float('inf'), "8K gaming, professional rendering, advanced AI/ML workloads")
 }
 
 # Configure logging for debugging
@@ -34,6 +36,13 @@ st.markdown("""
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
+    }
+    [data-testid="stMetricDelta"] > div {
+        color: #44c429 !important; 
+    }
+    /* This removes the default up/down arrow if (none) */
+    [data-testid="stMetricDelta"] svg {
+        display: up;
     }
     </style>
     """, unsafe_allow_html=True)
