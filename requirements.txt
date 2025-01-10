@@ -8,3 +8,4 @@ scikit_learn
 streamlit
 tensorflow
 xgboost
+dill
