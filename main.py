@@ -10,9 +10,7 @@ from models import HybridModels
 from model_performance_chart import plot_model_performance
 
 def create_directory_structure():
-    """
-    Create necessary directories for model saving.
-    
+    """    
     Creates a hierarchical directory structure for organizing model artifacts:
     - base_dir: Root directory for all model-related files
     - data_processing_dir: Directory for data preprocessing components
@@ -43,8 +41,8 @@ def save_data_processing_components(data_prep, encoders_dir, data_processing_dir
     for column, encoder in data_prep.label_encoders.items():
         joblib.dump(encoder, os.path.join(encoders_dir, f'le_{column}.pkl'))
     
-    # Save KNN imputer for handling missing values and scaler for feature normalization
-    joblib.dump(data_prep.knn_imputer, os.path.join(data_processing_dir, 'knn_imputer.pkl'))
+    # Save regression imputer for handling missing values and scaler for feature normalization
+    joblib.dump(data_prep.reg_imputer, os.path.join(data_processing_dir, 'reg_imputer.pkl'))
     joblib.dump(data_prep.scaler, os.path.join(data_processing_dir, 'scaler.pkl'))
 
 def calculate_metrics(predictions, true_values):
@@ -124,7 +122,7 @@ def main():
                 'memType': os.path.join(encoders_dir, 'le_memType.pkl'),
                 'manufacturer': os.path.join(encoders_dir, 'le_manufacturer.pkl')
             },
-            'knn_imputer': os.path.join(data_processing_dir, 'knn_imputer.pkl'),
+            'reg_imputer': os.path.join(data_processing_dir, 'reg_imputer.pkl'),
             'scaler': os.path.join(data_processing_dir, 'scaler.pkl')
         }
     }

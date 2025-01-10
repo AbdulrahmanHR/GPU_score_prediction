@@ -1,12 +1,12 @@
-# models.py
 import xgboost as xgb
 import lightgbm as lgb
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split, StratifiedKFold
+from sklearn.preprocessing import KBinsDiscretizer
 import tensorflow as tf
-from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout, BatchNormalization  # type: ignore
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau  # type: ignore
-from keras.optimizers import Adam  # type: ignore
+from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout, BatchNormalization # type: ignore
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau # type: ignore
+from keras.optimizers import Adam # type: ignore
 
 class HybridModels:
     def __init__(self, data, n_splits=5):
@@ -21,21 +21,28 @@ class HybridModels:
         self.X = data.drop(columns=["score"]).values
         self.y = data["score"].values
         self.n_splits = n_splits
-        self.kf = KFold(n_splits=n_splits, shuffle=True, random_state=32)
         self.feature_names = data.drop(columns=["score"]).columns.tolist()
         
-        # Define importance weights for key GPU features based on domain knowledge
+        # Create stratification bins for performance scores
+        self.stratifier = KBinsDiscretizer(n_bins=10, encode='ordinal', strategy='quantile')
+        self.y_binned = self.stratifier.fit_transform(self.y.reshape(-1, 1)).ravel()
+        
+        # Initialize stratified k-fold
+        self.kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=32)
+        
+        # Define importance weights for key GPU features
         self.feature_weights = {
-            'memSize': 2.5,     # Memory size has highest impact
-            'gpuClock': 2.3,    # GPU clock speed is second most important
-            'unifiedShader': 2.0, # Shader units have significant impact
-            'gpuChip': 1.5,     # GPU chip architecture matters
-            'memBusWidth': 1.6, # Memory bus width affects performance
-            'memClock': 1.6     # Memory clock speed is important
+            'memSize': 2.3,
+            'gpuClock': 2.4,
+            'unifiedShader': 1.8,
+            'gpuChip': 1.6,
+            'memBusWidth': 1.5,
+            'memClock': 1.5
         }
         
-        # Convert feature weights to list matching feature order in dataset
-        self.feature_weight_list = [self.feature_weights.get(feat, 1.0) for feat in self.feature_names]
+        # Convert feature weights to list matching feature order
+        self.feature_weight_list = [self.feature_weights.get(feat, 1.0) 
+                                  for feat in self.feature_names]
     
     def create_lstm_model(self, input_shape):
         """
@@ -80,7 +87,7 @@ class HybridModels:
         # Deep CNN architecture with batch normalization and dropout
         x = Conv1D(256, kernel_size=3, activation='relu', padding='same')(weighted_inputs)
         x = BatchNormalization()(x)
-        x = Dropout(0.3)(x)
+        x = Dropout(0.2)(x)
         x = Conv1D(128, kernel_size=3, activation='relu', padding='same')(x)
         x = BatchNormalization()(x)
         x = Dropout(0.2)(x)
@@ -96,7 +103,8 @@ class HybridModels:
         model.compile(optimizer=optimizer, loss='huber')
         return model
     
-    def train_deep_model(self, model, features_train, features_val, y_train, y_val, model_name, epochs=200, batch_size=16):
+    def train_deep_model(self, model, features_train, features_val, y_train, y_val, 
+                        model_name, epochs=200, batch_size=16):
         """
         Train a deep learning model with early stopping and learning rate reduction.
         """
@@ -111,7 +119,7 @@ class HybridModels:
             ReduceLROnPlateau(
                 monitor='val_loss',
                 factor=0.2,
-                patience=7,
+                patience=6,
                 min_lr=1e-7,
                 min_delta=1e-5
             )
@@ -128,7 +136,7 @@ class HybridModels:
         )
         
         # Calculate and print performance metrics
-        predictions = model.predict(features_val).flatten()
+        predictions = model.predict(features_val, verbose=0).flatten()
         rmse = np.sqrt(np.mean((predictions - y_val) ** 2)) * 1000
         print(f'{model_name} RMSE: {rmse:.2f}')
         
@@ -201,7 +209,7 @@ class HybridModels:
     
     def _train_hybrid_model(self, name, tree_model_func, deep_model_func):
         """
-        Internal method to train a hybrid model using k-fold cross validation.
+        Internal method to train a hybrid model using stratified k-fold cross validation.
         
         Args:
             name: Name of the tree-based model ('xgboost' or 'lightgbm')
@@ -220,8 +228,8 @@ class HybridModels:
         best_score = float('inf')
         best_models = None
         
-        # Perform k-fold cross validation
-        for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.X)):
+        # Perform stratified k-fold cross validation
+        for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.X, self.y_binned)):
             # Split data for current fold
             X_train = self.X[train_idx]
             X_val = self.X[val_idx]

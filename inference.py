@@ -35,8 +35,8 @@ class GPUPredictor:
                     os.path.join(encoders_dir, f'le_{column}.pkl')
                 )
             
-            # Load KNN imputer and scaler
-            self.knn_imputer = joblib.load(os.path.join(data_processing_dir, 'knn_imputer.pkl'))
+            # Load regression imputer and scaler
+            self.reg_imputer = joblib.load(os.path.join(data_processing_dir, 'reg_imputer.pkl'))
             self.scaler = joblib.load(os.path.join(data_processing_dir, 'scaler.pkl'))
             
             # Load models
@@ -78,10 +78,10 @@ class GPUPredictor:
             for column in self.categorical_columns:
                 df[column] = self.label_encoders[column].transform(df[column].astype(str))
             
-            # Handle missing values with KNN imputation
+            # Handle missing values with regression imputation
             impute_columns = ["memSize", "memBusWidth", "memClock"]
             impute_data = df[impute_columns].copy()
-            df[impute_columns] = self.knn_imputer.transform(impute_data)
+            df[impute_columns] = self.reg_imputer.transform(impute_data)
             
             # Scale numerical features
             df[self.numerical_columns] = self.scaler.transform(df[self.numerical_columns])

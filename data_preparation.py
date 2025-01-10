@@ -1,11 +1,12 @@
-# data_preparation.py
 import os
 import json
 import warnings
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.impute import KNNImputer
+from sklearn.experimental import enable_iterative_imputer  # This import is required
+from sklearn.impute import IterativeImputer
+from sklearn.ensemble import RandomForestRegressor
 import joblib
 
 # Suppress warnings for cleaner output
@@ -22,7 +23,7 @@ class DataPreparation:
         self.file_path = file_path
         self.data = None
         self.label_encoders = {}
-        self.knn_imputer = None
+        self.reg_imputer = None
         self.scaler = None
         self.score_scaler = None
         
@@ -69,7 +70,7 @@ class DataPreparation:
         1. Load and clean data
         2. Handle outliers
         3. Encode categorical features
-        4. Impute missing values
+        4. Impute missing values using regression
         5. Scale numerical features
         6. Verify scaling accuracy
         """
@@ -92,11 +93,18 @@ class DataPreparation:
             self.label_encoders[column] = LabelEncoder()
             self.data[column] = self.label_encoders[column].fit_transform(self.data[column])
 
-        # Impute missing values using KNN
-        self.knn_imputer = KNNImputer(n_neighbors=5, weights='distance')
+        # Initialize regression imputer with RandomForestRegressor
+        self.reg_imputer = IterativeImputer(
+            estimator=RandomForestRegressor(n_estimators=200, random_state=32),
+            random_state=32,
+            max_iter=10,
+            initial_strategy='mean'
+        )
+        
+        # Impute missing values using regression
         impute_columns = ["memSize", "memBusWidth", "memClock"]
         impute_data = self.data[impute_columns].copy()
-        self.data[impute_columns] = self.knn_imputer.fit_transform(impute_data)
+        self.data[impute_columns] = self.reg_imputer.fit_transform(impute_data)
 
         # Initialize scalers for features and target
         self.scaler = StandardScaler()
