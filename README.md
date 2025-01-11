@@ -108,7 +108,7 @@ Performance metrics are visualized as bar charts and saved as PNG files in the p
 
 ### `data_preparation.py`
 - Preprocesses data by handling outliers, scaling, and encoding categorical variables.
-- Implements KNN imputation for missing values.
+- Implements Random Forest Regression imputation for missing values.
 
 ### `models.py`
 - Defines hybrid model architectures.
@@ -137,7 +137,6 @@ The project requires the following Python libraries (specified in `requirements.
 - scikit-learn
 - streamlit
 - tensorflow
-- tensorflow-intel
 - xgboost
 
 ---
