@@ -1,4 +1,4 @@
-# model_performance_chart
+# model_performance_chart.py
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -58,7 +58,7 @@ def plot_model_performance(model_results):
     rects2 = ax.bar(x + width/2, rmse_values, width, label='RMSE', color='blue')
 
     ax.set_ylabel('Error Value')
-    ax.set_title('Model Performance (MAE and RMSE) with K-fold CV')
+    ax.set_title('Model Performance (MAE and RMSE) with stratified K-fold CV')
     ax.set_xticks(x)
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
@@ -77,7 +77,7 @@ def plot_model_performance(model_results):
     rects = ax.bar(models, r2_values, color='limegreen')
 
     ax.set_ylabel('R² Value (%)')
-    ax.set_title('Model Performance (R²) with K-fold CV')
+    ax.set_title('Model Performance (R²) with stratified K-fold CV')
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
@@ -93,7 +93,7 @@ def plot_model_performance(model_results):
     rects = ax.bar(models, mape_values, color='indigo')
 
     ax.set_ylabel('MAPE (%)')
-    ax.set_title('Model Performance (MAPE) with K-fold CV')
+    ax.set_title('Model Performance (MAPE) with stratified K-fold CV')
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
