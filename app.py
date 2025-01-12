@@ -9,8 +9,8 @@ import logging
 GPU_TIERS = {
     'Entry-level': (1000, 4000, "Basic computing, media playback, lightweight office work"),
     'Budget': (4000, 8000, "Casual gaming at 1080p, basic content creation"),
-    'Mid-range': (8000, 15000, "1080p/1440p gaming, content creation"),
-    'Performance': (15000, 20000, "High refresh 1440p gaming, professional workloads"),
+    'Mid-range': (8000, 16500, "1080p/1440p gaming, content creation"),
+    'Performance': (16500, 20000, "High refresh 1440p gaming, professional workloads"),
     'High-end': (20000, 25000, "4K gaming, professional content creation"),
     'Premium': (25000, 35000, "4K high refresh gaming, AI/ML development"),
     'Enthusiast': (35000, float('inf'), "8K gaming, professional rendering, advanced AI/ML workloads")
