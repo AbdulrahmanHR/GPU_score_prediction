@@ -10,6 +10,5 @@ tensorflow
 xgboost
 dill
 gitpython
-shutil
 pathlib
 subprocess 
