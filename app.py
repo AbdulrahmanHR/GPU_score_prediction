@@ -1,5 +1,3 @@
-# app.py
-# Run command: streamlit run app.py
 import streamlit as st
 from inference import GPUPredictor
 import numpy as np
@@ -42,12 +40,10 @@ def setup_repository():
         
         # Add the repository to Python path
         sys.path.append(str(temp_dir))
-        
-        st.success("Repository successfully cloned!")
         return True
         
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+        st.error(f"An error occurred during repository setup: {str(e)}")
         return False
 
 # GPU Performance Tiers
@@ -71,36 +67,43 @@ def initialize_session_state():
         st.session_state.categories = None
     if 'last_input' not in st.session_state:
         st.session_state.last_input = None
-
+    if 'repo_setup' not in st.session_state:
+        st.session_state.repo_setup = False
 
 def get_performance_tier(score):
     """Determine the performance tier based on G3D Mark score"""
-    for tier, (min_score, max_score, description) in GPU_TIERS.items():
-        if min_score <= score < max_score:
+    for tier, (min_score, max_value, description) in GPU_TIERS.items():
+        if min_score <= score < max_value:
             return tier, description
     return "Enthusiast", GPU_TIERS['Enthusiast'][2]
 
 def custom_number_input(label, key, value, min_value=None, max_value=None, help=None):
-    """
-    Custom numeric input function with state management
-    """
+    """Custom numeric input function with state management"""
+    current_value = str(st.session_state.get(f"{key}_value", value))
+    
     input_val = st.text_input(
-        label, 
-        value=str(value), 
+        label,
+        value=current_value,
         key=key,
         help=help,
         disabled=st.session_state.processing
     )
+    
     try:
-        input_val = float(input_val)
+        numeric_val = float(input_val)
         if min_value is not None:
-            input_val = max(min_value, input_val)
+            numeric_val = max(min_value, numeric_val)
         if max_value is not None:
-            input_val = min(max_value, input_val)
-        return input_val
+            numeric_val = min(max_value, numeric_val)
+        st.session_state[f"{key}_value"] = numeric_val
+        return numeric_val
     except ValueError:
+        if input_val == "":  # Allow empty input while typing
+            st.session_state[f"{key}_value"] = current_value
+            return float(current_value)
         st.warning(f"Please enter a valid number for {label}")
-        return value
+        st.session_state[f"{key}_value"] = current_value
+        return float(current_value)
 
 def main():
     """Main application function"""
@@ -124,7 +127,6 @@ def main():
         [data-testid="stMetricDelta"] > div {
             color: #44c429 !important; 
         }
-        /* This removes the default up/down arrow if (none) */
         [data-testid="stMetricDelta"] svg {
             display: up;
         }
@@ -136,13 +138,12 @@ def main():
     
     st.title("GPU Performance Predictor")
     st.markdown("Predict GPU performance using hybrid ML/DL models")
-
-    # Initialize repository first
-    if setup_repository():
-        # Only import after repository is setup
-        from inference import GPUPredictor
-        import numpy as np
-        
+    
+    # Setup repository if not already done
+    if not st.session_state.repo_setup:
+        st.session_state.repo_setup = setup_repository()
+    
+    if st.session_state.repo_setup:
         try:
             # Initialize predictor only once
             if st.session_state.predictor is None:
@@ -242,7 +243,7 @@ def main():
                             "Release Year", "release_year", 2024, 2014, 2025,
                             help="GPU release year"
                         )
-                
+
                 # Create input data dictionary
                 input_data = {
                     'manufacturer': manufacturer,
