@@ -90,20 +90,25 @@ def custom_number_input(label, key, value, min_value=None, max_value=None, help=
     )
     
     try:
-        numeric_val = float(input_val)
+        numeric_val = int(float(input_val))
+    
+        # Apply min/max constraints
         if min_value is not None:
-            numeric_val = max(min_value, numeric_val)
+            numeric_val = max(int(min_value), numeric_val)
         if max_value is not None:
-            numeric_val = min(max_value, numeric_val)
+            numeric_val = min(int(max_value), numeric_val)
+            
         st.session_state[f"{key}_value"] = numeric_val
         return numeric_val
+        
     except ValueError:
         if input_val == "":  # Allow empty input while typing
             st.session_state[f"{key}_value"] = current_value
-            return float(current_value)
-        st.warning(f"Please enter a valid number for {label}")
+            return int(float(current_value))
+            
+        st.warning(f"Please enter a valid integer for {label}")
         st.session_state[f"{key}_value"] = current_value
-        return float(current_value)
+        return int(float(current_value))
 
 def main():
     """Main application function"""
