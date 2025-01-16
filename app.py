@@ -3,7 +3,52 @@
 import streamlit as st
 from inference import GPUPredictor
 import numpy as np
-import logging
+import subprocess
+import shutil
+from pathlib import Path
+import sys
+
+def setup_repository():
+    """Setup and clone the private repository"""
+    try:
+        # Get token from secrets
+        token = st.secrets["GITHUB_TOKEN"]
+        
+        # Repository details
+        repo_name = "gpu_score_prediction"
+        username = "AbdulrahmanHR" 
+        
+        # Format the repo URL with token
+        repo_url = f"https://{token}@github.com/{username}/{repo_name}.git"
+        
+        # Create a temporary directory for cloning
+        temp_dir = Path("temp_repo")
+        
+        # Remove existing directory if it exists
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        
+        # Clone the repository
+        result = subprocess.run(
+            ["git", "clone", repo_url, str(temp_dir)],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            st.error("Failed to clone repository")
+            st.error(result.stderr)
+            return False
+        
+        # Add the repository to Python path
+        sys.path.append(str(temp_dir))
+        
+        st.success("Repository successfully cloned!")
+        return True
+        
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return False
 
 # GPU Performance Tiers
 GPU_TIERS = {
@@ -26,6 +71,7 @@ def initialize_session_state():
         st.session_state.categories = None
     if 'last_input' not in st.session_state:
         st.session_state.last_input = None
+
 
 def get_performance_tier(score):
     """Determine the performance tier based on G3D Mark score"""
@@ -90,208 +136,216 @@ def main():
     
     st.title("GPU Performance Predictor")
     st.markdown("Predict GPU performance using hybrid ML/DL models")
-    
-    try:
-        # Initialize predictor only once
-        if st.session_state.predictor is None:
-            st.session_state.predictor = GPUPredictor()
-            st.session_state.categories = st.session_state.predictor.get_categories()
+
+    # Initialize repository first
+    if setup_repository():
+        # Only import after repository is setup
+        from inference import GPUPredictor
+        import numpy as np
         
-        # Create tabs for predictor and about section
-        tab1, tab2 = st.tabs(["Predictor", "About"])
-        
-        with tab1:
-            # GPU specifications input form
-            with st.expander("GPU Specifications", expanded=True):
-                # Divide form into three columns for better organization
-                col1, col2, col3 = st.columns(3)
-                
-                # Column 1: Categorical inputs
-                with col1:
-                    # Set default values for dropdown menus
-                    defaults = {
-                        'manufacturer': "NVIDIA",
-                        'gpu_chip': "AD106",
-                        'mem_type': "GDDR6",
-                        'bus': "PCIe 4.0 x16"
-                    }
-                    
-                    # Create dropdown menus with default values
-                    manufacturer = st.selectbox(
-                        "Manufacturer", 
-                        options=st.session_state.categories['manufacturer'],
-                        index=st.session_state.categories['manufacturer'].index(defaults['manufacturer']),
-                        help="Select the GPU manufacturer",
-                        key="manufacturer",
-                        disabled=st.session_state.processing
-                    )
-                    
-                    gpu_chip = st.selectbox(
-                        "GPU Chip", 
-                        options=st.session_state.categories['gpuChip'],
-                        index=st.session_state.categories['gpuChip'].index(defaults['gpu_chip']),
-                        help="Select the GPU chip model",
-                        key="gpu_chip",
-                        disabled=st.session_state.processing
-                    )
-                    
-                    mem_type = st.selectbox(
-                        "Memory Type", 
-                        options=st.session_state.categories['memType'],
-                        index=st.session_state.categories['memType'].index(defaults['mem_type']),
-                        help="Select the memory type",
-                        key="mem_type",
-                        disabled=st.session_state.processing
-                    )
-                    
-                    bus = st.selectbox(
-                        "Bus Interface", 
-                        options=st.session_state.categories['bus'],
-                        index=st.session_state.categories['bus'].index(defaults['bus']),
-                        help="Select the PCIe interface version",
-                        key="bus",
-                        disabled=st.session_state.processing
-                    )
-                          
-                # Column 2: Memory and clock specifications
-                with col2:
-                    mem_size = custom_number_input(
-                        "Memory Size (GB)", "mem_size", 8, 1, 48,
-                        help="Total video memory in gigabytes"
-                    )
-                    mem_bus_width = custom_number_input(
-                        "Memory Bus Width (bits)", "mem_bus_width", 128, 32, 768,
-                        help="Memory interface width in bits"
-                    )
-                    gpu_clock = custom_number_input(
-                        "GPU Clock (MHz)", "gpu_clock", 1925, 100, 4000,
-                        help="Base GPU clock speed in MHz"
-                    )
-                    mem_clock = custom_number_input(
-                        "Memory Clock (MHz)", "mem_clock", 2250, 100, 4000,
-                        help="Memory clock speed in MHz"
-                    )
-                
-                # Column 3: Processing units and release year
-                with col3:
-                    unified_shader = custom_number_input(
-                        "Unified Shaders", "unified_shader", 3840, 1, 20000,
-                        help="Number of shader processing units"
-                    )
-                    tmu = custom_number_input(
-                        "Texture Mapping Units (TMUs)", "tmu", 120, 1, 1000,
-                        help="Number of texture mapping units"
-                    )
-                    rop = custom_number_input(
-                        "Render Output Units (ROPs)", "rop", 48, 1, 500,
-                        help="Number of render output units"
-                    )
-                    release_year = custom_number_input(
-                        "Release Year", "release_year", 2024, 2014, 2025,
-                        help="GPU release year"
-                    )
+        try:
+            # Initialize predictor only once
+            if st.session_state.predictor is None:
+                st.session_state.predictor = GPUPredictor()
+                st.session_state.categories = st.session_state.predictor.get_categories()
             
-            # Create input data dictionary
-            input_data = {
-                'manufacturer': manufacturer,
-                'gpuChip': gpu_chip,
-                'memType': mem_type,
-                'bus': bus,
-                'releaseYear': release_year,
-                'memSize': mem_size,
-                'memBusWidth': mem_bus_width,
-                'gpuClock': gpu_clock,
-                'memClock': mem_clock,
-                'unifiedShader': unified_shader,
-                'tmu': tmu,
-                'rop': rop
-            }
-
-            # Only show prediction button if input has changed
-            if st.session_state.last_input != str(input_data):
-                if st.button("🚀 Predict Performance", disabled=st.session_state.processing):
-                    st.session_state.processing = True
-                    st.session_state.last_input = str(input_data)
+            # Create tabs for predictor and about section
+            tab1, tab2 = st.tabs(["Predictor", "About"])
+            
+            with tab1:
+                # GPU specifications input form
+                with st.expander("GPU Specifications", expanded=True):
+                    # Divide form into three columns for better organization
+                    col1, col2, col3 = st.columns(3)
                     
-                    with st.spinner("Making predictions..."):
-                        predictions, original_values = st.session_state.predictor.predict(input_data)
-                        avg_prediction = np.mean(list(predictions.values()))
-
-                        # Display individual model predictions
-                        st.header("📊 Model Predictions")
-                        cols = st.columns(len(predictions))
-                        for col, (model_name, prediction) in zip(cols, predictions.items()):
-                            with col:
-                                st.metric(
-                                    label=model_name.replace('_', ' ').title(),
-                                    value=f"{int(prediction)}", 
-                                    delta="Performance Score"
-                                )
-                                           
-                        # Display average prediction with performance tier
-                        st.markdown("### 🎯 Overall Performance Score")
-                        avg_score = int(avg_prediction)
-                        tier, tier_description = get_performance_tier(avg_score)
-                        st.metric(
-                            label="Average Performance Score",
-                            value=f"{avg_score}",
-                            delta=f"{tier} Tier"
-                        )
-                        st.info(f"This GPU falls in the **{tier}** category: {tier_description}")
+                    # Column 1: Categorical inputs
+                    with col1:
+                        # Set default values for dropdown menus
+                        defaults = {
+                            'manufacturer': "NVIDIA",
+                            'gpu_chip': "AD106",
+                            'mem_type': "GDDR6",
+                            'bus': "PCIe 4.0 x16"
+                        }
                         
-                        # Display input specifications summary
-                        with st.expander("Selected Specifications", expanded=True):
-                            specs_col1, specs_col2 = st.columns(2)
-                            with specs_col1:
-                                st.markdown("### 📝 Hardware Details")
-                                st.info(f"""
-                                - **Manufacturer:** {original_values['manufacturer']}
-                                - **GPU Chip:** {original_values['gpuChip']}
-                                - **Memory Type:** {original_values['memType']}
-                                - **Bus Interface:** {original_values['bus']}
-                                """)
-                            with specs_col2:
-                                st.markdown("### ⚙️ Technical Specifications")
-                                st.info(f"""
-                                - **Memory:** {mem_size}GB @ {mem_clock}MHz
-                                - **Bus Width:** {mem_bus_width} bits
-                                - **GPU Clock:** {gpu_clock}MHz
-                                - **Processing Units:** {unified_shader} shaders, {tmu} TMUs, {rop} ROPs
-                                """)
+                        # Create dropdown menus with default values
+                        manufacturer = st.selectbox(
+                            "Manufacturer", 
+                            options=st.session_state.categories['manufacturer'],
+                            index=st.session_state.categories['manufacturer'].index(defaults['manufacturer']),
+                            help="Select the GPU manufacturer",
+                            key="manufacturer",
+                            disabled=st.session_state.processing
+                        )
+                        
+                        gpu_chip = st.selectbox(
+                            "GPU Chip", 
+                            options=st.session_state.categories['gpuChip'],
+                            index=st.session_state.categories['gpuChip'].index(defaults['gpu_chip']),
+                            help="Select the GPU chip model",
+                            key="gpu_chip",
+                            disabled=st.session_state.processing
+                        )
+                        
+                        mem_type = st.selectbox(
+                            "Memory Type", 
+                            options=st.session_state.categories['memType'],
+                            index=st.session_state.categories['memType'].index(defaults['mem_type']),
+                            help="Select the memory type",
+                            key="mem_type",
+                            disabled=st.session_state.processing
+                        )
+                        
+                        bus = st.selectbox(
+                            "Bus Interface", 
+                            options=st.session_state.categories['bus'],
+                            index=st.session_state.categories['bus'].index(defaults['bus']),
+                            help="Select the PCIe interface version",
+                            key="bus",
+                            disabled=st.session_state.processing
+                        )
+                              
+                    # Column 2: Memory and clock specifications
+                    with col2:
+                        mem_size = custom_number_input(
+                            "Memory Size (GB)", "mem_size", 8, 1, 48,
+                            help="Total video memory in gigabytes"
+                        )
+                        mem_bus_width = custom_number_input(
+                            "Memory Bus Width (bits)", "mem_bus_width", 128, 32, 768,
+                            help="Memory interface width in bits"
+                        )
+                        gpu_clock = custom_number_input(
+                            "GPU Clock (MHz)", "gpu_clock", 1925, 100, 4000,
+                            help="Base GPU clock speed in MHz"
+                        )
+                        mem_clock = custom_number_input(
+                            "Memory Clock (MHz)", "mem_clock", 2250, 100, 4000,
+                            help="Memory clock speed in MHz"
+                        )
                     
-                    st.session_state.processing = False
-                    
-        # About tab content
-        with tab2:
-            st.markdown("### About GPU Performance Predictor")
-            st.markdown("""
-                This application uses machine learning and deep learning models to predict GPU performance based on hardware specifications. 
-                The prediction system combines multiple models:
+                    # Column 3: Processing units and release year
+                    with col3:
+                        unified_shader = custom_number_input(
+                            "Unified Shaders", "unified_shader", 3840, 1, 20000,
+                            help="Number of shader processing units"
+                        )
+                        tmu = custom_number_input(
+                            "Texture Mapping Units (TMUs)", "tmu", 120, 1, 1000,
+                            help="Number of texture mapping units"
+                        )
+                        rop = custom_number_input(
+                            "Render Output Units (ROPs)", "rop", 48, 1, 500,
+                            help="Number of render output units"
+                        )
+                        release_year = custom_number_input(
+                            "Release Year", "release_year", 2024, 2014, 2025,
+                            help="GPU release year"
+                        )
                 
-                - XGBoost + LSTM: Gradient boosting combined with long short-term memory networks
-                - LightGBM + LSTM: Light gradient boosting with LSTM
-                - XGBoost + CNN: Gradient boosting with convolutional neural networks
-                - LightGBM + CNN: Light gradient boosting with CNN
-            """)
-            
-            st.markdown("### Performance Tiers")
-            for tier, (min_score, max_score, description) in GPU_TIERS.items():
-                st.info(f"""
-                **{tier}** (Score: {min_score:,} - {max_score if max_score != float('inf') else '∞'})
-                {description}
-                """)
-            
-            st.markdown("""
-                ### Use Cases
-                - Compare different GPU configurations
-                - Evaluate potential upgrades
-                - Assess performance implications of specification changes
-                - Benchmark custom GPU configurations
-            """)
+                # Create input data dictionary
+                input_data = {
+                    'manufacturer': manufacturer,
+                    'gpuChip': gpu_chip,
+                    'memType': mem_type,
+                    'bus': bus,
+                    'releaseYear': release_year,
+                    'memSize': mem_size,
+                    'memBusWidth': mem_bus_width,
+                    'gpuClock': gpu_clock,
+                    'memClock': mem_clock,
+                    'unifiedShader': unified_shader,
+                    'tmu': tmu,
+                    'rop': rop
+                }
 
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        st.session_state.processing = False
+                # Only show prediction button if input has changed
+                if st.session_state.last_input != str(input_data):
+                    if st.button("🚀 Predict Performance", disabled=st.session_state.processing):
+                        st.session_state.processing = True
+                        st.session_state.last_input = str(input_data)
+                        
+                        with st.spinner("Making predictions..."):
+                            predictions, original_values = st.session_state.predictor.predict(input_data)
+                            avg_prediction = np.mean(list(predictions.values()))
+
+                            # Display individual model predictions
+                            st.header("📊 Model Predictions")
+                            cols = st.columns(len(predictions))
+                            for col, (model_name, prediction) in zip(cols, predictions.items()):
+                                with col:
+                                    st.metric(
+                                        label=model_name.replace('_', ' ').title(),
+                                        value=f"{int(prediction)}", 
+                                        delta="Performance Score"
+                                    )
+                                               
+                            # Display average prediction with performance tier
+                            st.markdown("### 🎯 Overall Performance Score")
+                            avg_score = int(avg_prediction)
+                            tier, tier_description = get_performance_tier(avg_score)
+                            st.metric(
+                                label="Average Performance Score",
+                                value=f"{avg_score}",
+                                delta=f"{tier} Tier"
+                            )
+                            st.info(f"This GPU falls in the **{tier}** category: {tier_description}")
+                            
+                            # Display input specifications summary
+                            with st.expander("Selected Specifications", expanded=True):
+                                specs_col1, specs_col2 = st.columns(2)
+                                with specs_col1:
+                                    st.markdown("### 📝 Hardware Details")
+                                    st.info(f"""
+                                    - **Manufacturer:** {original_values['manufacturer']}
+                                    - **GPU Chip:** {original_values['gpuChip']}
+                                    - **Memory Type:** {original_values['memType']}
+                                    - **Bus Interface:** {original_values['bus']}
+                                    """)
+                                with specs_col2:
+                                    st.markdown("### ⚙️ Technical Specifications")
+                                    st.info(f"""
+                                    - **Memory:** {mem_size}GB @ {mem_clock}MHz
+                                    - **Bus Width:** {mem_bus_width} bits
+                                    - **GPU Clock:** {gpu_clock}MHz
+                                    - **Processing Units:** {unified_shader} shaders, {tmu} TMUs, {rop} ROPs
+                                    """)
+                        
+                        st.session_state.processing = False
+                        
+            # About tab content
+            with tab2:
+                st.markdown("### About GPU Performance Predictor")
+                st.markdown("""
+                    This application uses machine learning and deep learning models to predict GPU performance based on hardware specifications. 
+                    The prediction system combines multiple models:
+                    
+                    - XGBoost + LSTM: Gradient boosting combined with long short-term memory networks
+                    - LightGBM + LSTM: Light gradient boosting with LSTM
+                    - XGBoost + CNN: Gradient boosting with convolutional neural networks
+                    - LightGBM + CNN: Light gradient boosting with CNN
+                """)
+                
+                st.markdown("### Performance Tiers")
+                for tier, (min_score, max_score, description) in GPU_TIERS.items():
+                    st.info(f"""
+                    **{tier}** (Score: {min_score:,} - {max_score if max_score != float('inf') else '∞'})
+                    {description}
+                    """)
+                
+                st.markdown("""
+                    ### Use Cases
+                    - Compare different GPU configurations
+                    - Evaluate potential upgrades
+                    - Assess performance implications of specification changes
+                    - Benchmark custom GPU configurations
+                """)
+
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            st.session_state.processing = False
+    else:
+        st.error("Failed to setup repository. Please check your credentials and try again.")
 
 if __name__ == "__main__":
     main()
