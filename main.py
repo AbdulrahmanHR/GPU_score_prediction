@@ -8,6 +8,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from data_preparation import DataPreparation
 from models import HybridModels
 from model_performance_chart import plot_model_performance
+from model_visualization import visualize_models 
 
 def create_directory_structure():
     """    
@@ -58,18 +59,18 @@ def calculate_metrics(predictions, true_values):
             - mae: Mean Absolute Error (scaled by 1000)
             - rmse: Root Mean Square Error (scaled by 1000)
             - r2: R-squared score (as percentage)
-            - mape: Mean Absolute Percentage Error (as percentage)
+            - smape:  
     """
     mae = mean_absolute_error(true_values, predictions) * 1000
     rmse = np.sqrt(mean_squared_error(true_values, predictions)) * 1000
     r2 = r2_score(true_values, predictions) * 100
-    mape = np.mean(np.abs((true_values - predictions) / true_values)) * 100
-    
+    smape = np.mean(2 * np.abs(predictions - true_values) / (np.abs(predictions) + np.abs(true_values))) * 100   
+     
     return {
         'mae': mae,
         'rmse': rmse,
         'r2': r2,
-        'mape': mape
+        'smape': smape
     }
 
 def main():
@@ -173,6 +174,7 @@ def main():
     
     # Generate and save performance visualization
     plot_model_performance(model_results)
+    visualize_models(model_results, hybrid_models)
     
     # Print performance metrics for all models
     print("\nModel Performance Metrics:")
@@ -182,7 +184,7 @@ def main():
         print(f"MAE: {model_metrics['mae']:.2f} # Lower is better")
         print(f"RMSE: {model_metrics['rmse']:.2f} # Lower is better")
         print(f"R²: {model_metrics['r2']:.2f}% # Higher is better")
-        print(f"MAPE: {model_metrics['mape']:.2f}% # Lower is better")
+        print(f"SMAPE: {model_metrics['smape']:.2f}% # Lower is better")
     
     # Save metrics to JSON file
     with open(os.path.join(base_dir, 'metrics.json'), 'w') as f:

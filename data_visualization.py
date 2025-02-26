@@ -7,7 +7,7 @@ import seaborn as sns
 
 def create_visualization_directory():
     """Create directory for storing visualization outputs"""
-    viz_dir = 'visualizations'
+    viz_dir = 'data_visualizations'
     os.makedirs(viz_dir, exist_ok=True)
     return viz_dir
 
@@ -221,14 +221,125 @@ def analyze_and_visualize_data(data_path):
     
     print("Generating correlation heatmaps...")
     plot_correlation_heatmap(df, viz_dir)
-    
+        
+    print("Generating 3D relationships...")        
+    plot_3d_relationships(df, viz_dir)
+                
     print(f"\nAll visualizations have been saved to: {viz_dir}")
     
     return df, viz_dir
 
+def plot_3d_relationships(df, output_dir):
+    """
+    Create interactive 3D scatter plots to visualize relationships between key features.
+    Requires plotly to be installed.
+    
+    Args:
+        df: DataFrame containing the dataset
+        output_dir: Directory to save the plots
+    """
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+    except ImportError:
+        print("Plotly is required for 3D plots. Install with: pip install plotly")
+        return
+    
+    # Only proceed if we have score and other numerical features
+    if 'score' not in df.columns:
+        print("Target variable 'score' not found for 3D visualization.")
+        return
+    
+    numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    
+    # Remove score from numerical columns to use as target
+    if 'score' in numerical_cols:
+        numerical_cols.remove('score')
+    
+    # Need at least 2 numerical features for 3D plot
+    if len(numerical_cols) < 2:
+        print("Not enough numerical features for 3D visualization.")
+        return
+    
+    # Select top 2 features that correlate most with score
+    corr_matrix = df[numerical_cols + ['score']].corr()
+    top_features = corr_matrix['score'].abs().sort_values(ascending=False).index.tolist()[1:3]
+    
+    # Create the 3D scatter plot
+    if 'vendor' in df.columns:
+        # With vendor as color
+        fig = px.scatter_3d(df, x=top_features[0], y=top_features[1], z='score',
+                           color='vendor', opacity=0.7,
+                           title=f'3D Relationship: {top_features[0]} vs {top_features[1]} vs Score',
+                           labels={top_features[0]: top_features[0].capitalize(),
+                                  top_features[1]: top_features[1].capitalize(),
+                                  'score': 'Performance Score'})
+    else:
+        # Without vendor information
+        fig = px.scatter_3d(df, x=top_features[0], y=top_features[1], z='score',
+                           color='score', opacity=0.7,
+                           color_continuous_scale='viridis',
+                           title=f'3D Relationship: {top_features[0]} vs {top_features[1]} vs Score',
+                           labels={top_features[0]: top_features[0].capitalize(),
+                                  top_features[1]: top_features[1].capitalize(),
+                                  'score': 'Performance Score'})
+    
+    # Update marker size
+    fig.update_traces(marker=dict(size=5))
+    
+    # Add a rotating camera
+    fig.update_layout(scene_camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),
+                     scene=dict(xaxis_title=top_features[0],
+                               yaxis_title=top_features[1],
+                               zaxis_title='score'))
+    
+    # Save as HTML file (interactive)
+    html_path = os.path.join(output_dir, '3d_feature_relationships.html')
+    fig.write_html(html_path)
+    
+    # Also save as static image for reports
+    img_path = os.path.join(output_dir, '3d_feature_relationships.png')
+    fig.write_image(img_path, width=1000, height=800)
+    
+    print(f"3D visualization saved to {html_path} (interactive) and {img_path} (static)")
+    
+    # Create a second 3D plot with different features if available
+    if len(numerical_cols) >= 4:
+        # Select different features for variety
+        other_features = [col for col in numerical_cols if col not in top_features][:2]
+        
+        if 'vendor' in df.columns:
+            fig2 = px.scatter_3d(df, x=other_features[0], y=other_features[1], z='score',
+                               color='vendor', opacity=0.7,
+                               title=f'3D Relationship: {other_features[0]} vs {other_features[1]} vs Score',
+                               labels={other_features[0]: other_features[0].capitalize(),
+                                      other_features[1]: other_features[1].capitalize(),
+                                      'score': 'Performance Score'})
+        else:
+            fig2 = px.scatter_3d(df, x=other_features[0], y=other_features[1], z='score',
+                               color='score', opacity=0.7,
+                               color_continuous_scale='plasma',
+                               title=f'3D Relationship: {other_features[0]} vs {other_features[1]} vs Score',
+                               labels={other_features[0]: other_features[0].capitalize(),
+                                      other_features[1]: other_features[1].capitalize(),
+                                      'score': 'Performance Score'})
+        
+        fig2.update_traces(marker=dict(size=5))
+        fig2.update_layout(scene_camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),
+                         scene=dict(xaxis_title=other_features[0],
+                                   yaxis_title=other_features[1],
+                                   zaxis_title='score'))
+        
+        # Save alternative visualization
+        html_path2 = os.path.join(output_dir, '3d_feature_relationships_alt.html')
+        fig2.write_html(html_path2)
+        
+        img_path2 = os.path.join(output_dir, '3d_feature_relationships_alt.png')
+        fig2.write_image(img_path2, width=1000, height=800)
+
+
 if __name__ == "__main__":
-    # Example usage
-    data_file = "gpu_specs_v6_score.csv"  # Update this to your data file path
+    data_file = "gpu_specs_v6_score.csv" 
     df, output_dir = analyze_and_visualize_data(data_file)
     
     print("\nData Statistics Summary:")

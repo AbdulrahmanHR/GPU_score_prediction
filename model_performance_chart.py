@@ -7,8 +7,8 @@ def calculate_fold_metrics(predictions, true_values):
     mae = mean_absolute_error(true_values, predictions)
     rmse = np.sqrt(mean_squared_error(true_values, predictions))
     r2 = r2_score(true_values, predictions)
-    mape = np.mean(np.abs((true_values - predictions) / true_values)) * 100
-    return mae, rmse, r2, mape
+    smape = np.mean(2 * np.abs(predictions - true_values) / (np.abs(predictions) + np.abs(true_values))) * 100
+    return mae, rmse, r2, smape
 
 def plot_model_performance(model_results):
 
@@ -24,8 +24,8 @@ def plot_model_performance(model_results):
         predictions = model_results[model_name]['predictions']
         true_values = model_results[model_name]['true_values']
         
-        mae, rmse, r2, mape = calculate_fold_metrics(predictions, true_values)
-        metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2, 'mape': mape}
+        mae, rmse, r2, smape = calculate_fold_metrics(predictions, true_values)
+        metrics[model_name] = {'mae': mae, 'rmse': rmse, 'r2': r2, 'smape': smape}
 
     # Helper function for adding value labels
     def autolabel(rects, ax, is_percentage=False):
@@ -87,20 +87,20 @@ def plot_model_performance(model_results):
     plt.savefig(os.path.join(charts_dir, 'performance_r2_kfold.png'))
     plt.close()
 
-    # MAPE plot
+    # SMAPE plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    mape_values = [metrics[model]['mape'] for model in models]
-    rects = ax.bar(models, mape_values, color='indigo')
+    smape_values = [metrics[model]['smape'] for model in models]
+    rects = ax.bar(models, smape_values, color='indigo')
 
-    ax.set_ylabel('MAPE (%)')
-    ax.set_title('Model Performance (MAPE) with stratified K-fold CV')
+    ax.set_ylabel('SMAPE (%)')
+    ax.set_title('Model Performance (SMAPE) with stratified K-fold CV')
     display_names = [model.replace('_', '/').upper() for model in models]
     ax.set_xticklabels(display_names, rotation=45)    
     
     autolabel(rects, ax, is_percentage=True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(charts_dir, 'performance_mape_kfold.png'))
+    plt.savefig(os.path.join(charts_dir, 'performance_smape_kfold.png'))
     plt.close()
     
     # Return metrics dictionary for further use if needed
