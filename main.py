@@ -9,6 +9,7 @@ from data_preparation import DataPreparation
 from models import HybridModels
 from model_performance_chart import plot_model_performance
 from model_visualization import visualize_models 
+import time
 
 def create_directory_structure():
     """    
@@ -42,9 +43,9 @@ def save_data_processing_components(data_prep, encoders_dir, data_processing_dir
     for column, encoder in data_prep.label_encoders.items():
         joblib.dump(encoder, os.path.join(encoders_dir, f'le_{column}.pkl'))
     
-    # Save regression imputer for handling missing values and scaler for feature normalization
-    joblib.dump(data_prep.reg_imputer, os.path.join(data_processing_dir, 'reg_imputer.pkl'))
+    # Save scaler for feature normalization
     joblib.dump(data_prep.scaler, os.path.join(data_processing_dir, 'scaler.pkl'))
+    joblib.dump(data_prep.score_scaler, os.path.join(data_processing_dir, 'score_scaler.pkl'))
 
 def calculate_metrics(predictions, true_values):
     """
@@ -82,6 +83,8 @@ def main():
     4. Trains multiple hybrid models
     5. Evaluates and saves model results
     """
+    start_time = time.time()
+
     # Enable mixed precision training for better performance on compatible GPUs
     tf.keras.mixed_precision.set_global_policy('mixed_float16')
     
@@ -91,25 +94,25 @@ def main():
     # Prepare and preprocess the data
     print("\nPreparing data...")
     data_prep = DataPreparation('gpu_specs_v6_score.csv')
-    data = data_prep.preprocess_data()
+    
+    # Use preprocess_train_test_split instead of preprocess_data
+    train_data, test_data = data_prep.preprocess_train_test_split()
     
     # Save preprocessing components for inference
     print("\nSaving data processing components...")
     save_data_processing_components(data_prep, encoders_dir, data_processing_dir)
     
     # Save unique categories for categorical variables
-    known_categories = {
-        'gpuChip': data['gpuChip'].unique().tolist(),
-        'bus': data['bus'].unique().tolist(),
-        'memType': data['memType'].unique().tolist(),
-        'manufacturer': data['manufacturer'].unique().tolist()
-    }
+    known_categories = {}
+    for col in data_prep.categorical_columns:
+        known_categories[col] = train_data[col].unique().tolist()
+    
     with open(os.path.join(data_processing_dir, 'known_categories.json'), 'w') as f:
         json.dump(known_categories, f)
     
-    # Initialize hybrid models
+    # Initialize hybrid models with both train and test data
     print("\nTraining models...")
-    hybrid_models = HybridModels(data)
+    hybrid_models = HybridModels(train_data, test_data)  # Updated to pass both datasets
     
     # Initialize dictionaries to store results and file paths
     model_results = {}
@@ -117,16 +120,16 @@ def main():
     model_paths = {
         'data_processing': {
             'known_categories': os.path.join(data_processing_dir, 'known_categories.json'),
-            'label_encoders': {
-                'gpuChip': os.path.join(encoders_dir, 'le_gpuChip.pkl'),
-                'bus': os.path.join(encoders_dir, 'le_bus.pkl'),
-                'memType': os.path.join(encoders_dir, 'le_memType.pkl'),
-                'manufacturer': os.path.join(encoders_dir, 'le_manufacturer.pkl')
-            },
-            'reg_imputer': os.path.join(data_processing_dir, 'reg_imputer.pkl'),
-            'scaler': os.path.join(data_processing_dir, 'scaler.pkl')
+            'label_encoders': {}
         }
     }
+    
+    # Populate label encoders paths
+    for col in data_prep.categorical_columns:
+        model_paths['data_processing']['label_encoders'][col] = os.path.join(encoders_dir, f'le_{col}.pkl')
+    
+    model_paths['data_processing']['scaler'] = os.path.join(data_processing_dir, 'scaler.pkl')
+    model_paths['data_processing']['score_scaler'] = os.path.join(data_processing_dir, 'score_scaler.pkl')
     
     # Define all model combinations to train
     model_types = {
@@ -192,6 +195,12 @@ def main():
     
     print("\nTraining and evaluation completed successfully!")
     print(f"All models and analysis files have been saved to: {base_dir}")
+    
+    end_time = time.time()
+    training_time = end_time - start_time
+    print(f"Training completed in {training_time:.4f} seconds")
+    training_time_min= training_time/60
+    print(f"Training completed in {training_time_min:.4f} minutes")
 
 if __name__ == "__main__":
     main()

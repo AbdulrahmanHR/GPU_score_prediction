@@ -35,68 +35,154 @@ class DataPreparation:
             'memSize', 'memBusWidth', 'gpuClock', 'memClock',
             'unifiedShader', 'tmu', 'rop', 'releaseYear'
         ]
-
-    def handle_outliers(self, columns, method="percentile", n_std=3):
+        
+        
+    def load_data(self):
+        """Load data from CSV without any processing"""
+        self.data = pd.read_csv(self.file_path)
+        
+        # Remove product name if present (not used for prediction)
+        if "productName" in self.data.columns:
+            self.data.drop(columns=["productName"], inplace=True)
+            
+        return self.data
+    
+    def handle_outliers(self, df, columns, method="percentile", n_std=3):
+        """Handle outliers in specified columns - returns a NEW dataframe"""
+        result_df = df.copy()
+        
         for col in columns:
             if method == "percentile":
-                lower_bound = self.data[col].quantile(0.01) * 0.95
-                upper_bound = self.data[col].quantile(0.99)
+                lower_bound = result_df[col].quantile(0.01) * 0.95
+                upper_bound = result_df[col].quantile(0.99)
             elif method == "std":
-                mean = self.data[col].mean()
-                std = self.data[col].std()
+                mean = result_df[col].mean()
+                std = result_df[col].std()
                 lower_bound = mean - n_std * std
                 upper_bound = mean + n_std * std
             else:
                 raise ValueError("Invalid method. Choose 'percentile' or 'std'.")
             
-        if col == 'score':
-            lower_bound = max(lower_bound, 10)
+            if col == 'score':
+                lower_bound = max(lower_bound, 10)
             
-            self.data[col] = self.data[col].clip(lower_bound, upper_bound)
+            result_df[col] = result_df[col].clip(lower_bound, upper_bound)
+            
+        return result_df
 
-    def preprocess_data(self):
-        # Load data from CSV
-        self.data = pd.read_csv(self.file_path)
-
-        # Remove product name if present (not used for prediction)
-        if "productName" in self.data.columns:
-            self.data.drop(columns=["productName"], inplace=True)
-
-        # Handle outliers first
-        self.handle_outliers(self.numerical_columns)
-        self.handle_outliers(['score'])
-
-        # Encode categorical features
-        for column in self.categorical_columns:
-            self.label_encoders[column] = LabelEncoder()
-            self.data[column] = self.label_encoders[column].fit_transform(self.data[column])
-
-        # Remove missing values and capture count
-        initial_rows = self.data.shape[0]
-        self.data = self.data.dropna()
-        removed_rows = initial_rows - self.data.shape[0]
-        print(f"Removed {removed_rows} rows with missing values.")
-
-        # Capture original scores AFTER cleaning
-        original_score = self.data['score'].copy()
-
-        # Initialize scalers
+    def fit_transformers(self, train_df):
+        """
+        Fit label encoders and scalers on training data only.
+        This should be called only on the training set.
+        """
+        # Initialize transformers
+        self.label_encoders = {}
         self.scaler = MinMaxScaler()
         self.score_scaler = MinMaxScaler()
-
-        # Scale features and target
-        self.data[self.numerical_columns] = self.scaler.fit_transform(self.data[self.numerical_columns])
-        self.data['score'] = self.score_scaler.fit_transform(self.data[['score']])
-
-        # Verify scaling with aligned data
-        score_inverse = self.score_scaler.inverse_transform(self.data[['score']]).flatten()
-        relative_diff = np.abs(score_inverse - original_score) / np.maximum(np.abs(original_score), 1e-10)
         
-        if np.max(relative_diff) > 0.3:
-            warnings.warn(f"Large relative difference in score scaling detected: {np.max(relative_diff)}")
-
+        # Fit label encoders on categorical features
+        for column in self.categorical_columns:
+            self.label_encoders[column] = LabelEncoder()
+            self.label_encoders[column].fit(train_df[column])
+        
+        # Fit scalers on numerical features and target
+        self.scaler.fit(train_df[self.numerical_columns])
+        
+        if 'score' in train_df.columns:
+            self.score_scaler.fit(train_df[['score']])
+    
+    def transform_data(self, df, transform_target=True):
+        """
+        Apply transformations using pre-fitted transformers.
+        Can be applied to both training and test data.
+        """
+        result_df = df.copy()
+        
+        # Apply label encoders to categorical features
+        for column in self.categorical_columns:
+            # Handle unseen categories by mapping them to -1
+            result_df[column] = result_df[column].map(
+                lambda x: self.label_encoders[column].transform([x])[0] 
+                if x in self.label_encoders[column].classes_ else -1
+            )
+        
+        # Apply scalers to numerical features
+        result_df[self.numerical_columns] = self.scaler.transform(result_df[self.numerical_columns])
+        
+        # Apply target scaling if needed and if target exists
+        if transform_target and 'score' in result_df.columns:
+            result_df['score'] = self.score_scaler.transform(result_df[['score']])
+        
         # Return data with consistent column ordering
-        return self.data[self.feature_order + ['score']]
+        return result_df[self.feature_order + (
+            ['score'] if 'score' in result_df.columns else []
+        )]
+        
+    def preprocess_train_test_split(self, test_size=0.15, random_state=42):
+        """
+        Load, clean, split and preprocess data while avoiding data leakage.
+        Returns train and test datasets properly processed.
+        """
+        from sklearn.model_selection import train_test_split
+        
+        # Step 1: Load raw data
+        raw_data = self.load_data()
+        
+        # Step 2: Handle missing values and capture count
+        initial_rows = raw_data.shape[0]
+        cleaned_data = raw_data.dropna()
+        removed_rows = initial_rows - cleaned_data.shape[0]
+        print(f"Removed {removed_rows} rows with missing values.")
+        
+        # Step 3: Split the data BEFORE any transformations
+        train_data, test_data = train_test_split(
+            cleaned_data, 
+            test_size=test_size, 
+            random_state=random_state
+        )
+        
+        # Step 4: Handle outliers in training data only
+        train_data = self.handle_outliers(
+            train_data, 
+            self.numerical_columns + ['score']
+        )
+        
+        # Step 5: Fit transformers on training data only
+        self.fit_transformers(train_data)
+        
+        # Step 6: Apply transformations to both sets
+        train_processed = self.transform_data(train_data)
+        test_processed = self.transform_data(test_data)
+        
+        return train_processed, test_processed
+    # data_preparation.py - Fixed preprocessing method
+    def preprocess_data(self):
+        """
+        Complete preprocessing method for a single dataset
+        (without splitting into train/test)
+        """
+        # Step 1: Load raw data
+        raw_data = self.load_data()
+        
+        # Step 2: Handle missing values
+        initial_rows = raw_data.shape[0]
+        cleaned_data = raw_data.dropna()
+        removed_rows = initial_rows - cleaned_data.shape[0]
+        print(f"Removed {removed_rows} rows with missing values.")
+        
+        # Step 3: Handle outliers
+        processed_data = self.handle_outliers(
+            cleaned_data, 
+            self.numerical_columns + (['score'] if 'score' in cleaned_data.columns else [])
+        )
+                
+        # Step 4: Fit transformers on the entire dataset
+        self.fit_transformers(processed_data)
+        
+        # Step 5: Apply transformations
+        processed_data = self.transform_data(processed_data)
+        
+        return processed_data
 
     def save_feature_order(self, path):
         # Ensure directory exists
@@ -107,18 +193,24 @@ class DataPreparation:
             json.dump({
                 'feature_order': self.feature_order,
                 'categorical_columns': self.categorical_columns,
-                'numerical_columns': self.numerical_columns
+                'numerical_columns': self.numerical_columns,
             }, f, indent=4)
         
-        # Save score scaler for inference
-        score_scaler_path = os.path.join(os.path.dirname(path), 'score_scaler.pkl')
-        joblib.dump(self.score_scaler, score_scaler_path)
+        # Save transformers for inference
+        transformers_dir = os.path.dirname(path)
+        joblib.dump(self.score_scaler, os.path.join(transformers_dir, 'score_scaler.pkl'))
+        joblib.dump(self.scaler, os.path.join(transformers_dir, 'feature_scaler.pkl'))
+        
+        # Save label encoders
+        for col, encoder in self.label_encoders.items():
+            joblib.dump(encoder, os.path.join(transformers_dir, f'{col}_encoder.pkl'))
         
         # Save verification data for scaling checks
-        verification_data = {
-            'original_scale_example': float(self.score_scaler.inverse_transform([[1.0]])[0][0]),
-            'scaled_example': float(self.score_scaler.transform([[1000.0]])[0][0])
-        }
-        verification_path = os.path.join(os.path.dirname(path), 'scaling_verification.json')
-        with open(verification_path, 'w') as f:
-            json.dump(verification_data, f, indent=4)
+        if self.score_scaler is not None:
+            verification_data = {
+                'original_scale_example': float(self.score_scaler.inverse_transform([[1.0]])[0][0]),
+                'scaled_example': float(self.score_scaler.transform([[1000.0]])[0][0])
+            }
+            verification_path = os.path.join(transformers_dir, 'scaling_verification.json')
+            with open(verification_path, 'w') as f:
+                json.dump(verification_data, f, indent=4)
