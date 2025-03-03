@@ -27,29 +27,24 @@ class GPUPredictor:
                 self.categorical_columns = feature_info['categorical_columns']
                 self.numerical_columns = feature_info['numerical_columns']
             
-            # Load label encoders
-            encoders_dir = os.path.join(data_processing_dir, 'encoders')
-            self.label_encoders = {}
-            for column in self.categorical_columns:
-                self.label_encoders[column] = joblib.load(
-                    os.path.join(encoders_dir, f'le_{column}.pkl')
-                )
+            # Load known categories for categorical features
+            with open(os.path.join(data_processing_dir, 'known_categories.json'), 'r') as f:
+                self.known_categories = json.load(f)
             
-            # Load regression imputer and scaler
-            self.reg_imputer = joblib.load(os.path.join(data_processing_dir, 'reg_imputer.pkl'))
-            self.scaler = joblib.load(os.path.join(data_processing_dir, 'scaler.pkl'))
+            # Load ordinal encoder and scalers
+            self.ordinal_encoder = joblib.load(os.path.join(data_processing_dir, 'ordinal_encoder.pkl'))
+            self.feature_scaler = joblib.load(os.path.join(data_processing_dir, 'feature_scaler.pkl'))
+            self.score_scaler = joblib.load(os.path.join(data_processing_dir, 'score_scaler.pkl'))
             
             # Load models
             self.models = {}
             for model_type in ['xgboost_lstm', 'lightgbm_lstm', 'xgboost_cnn', 'lightgbm_cnn']:
-                model_dir = os.path.join(self.models_dir, model_type)
-                self.models[model_type] = {
-                    'feature_extractor': joblib.load(os.path.join(model_dir, 'feature_extractor.pkl')),
-                    'predictor': keras.models.load_model(os.path.join(model_dir, 'predictor.keras'))
-                }
-                
-            # Load score scaler
-            self.score_scaler = joblib.load(os.path.join(data_processing_dir, 'score_scaler.pkl'))
+                if model_type in self.model_paths:
+                    model_dir = os.path.join(self.models_dir, model_type)
+                    self.models[model_type] = {
+                        'feature_extractor': joblib.load(self.model_paths[model_type]['feature_extractor']),
+                        'predictor': keras.models.load_model(self.model_paths[model_type]['predictor'])
+                    }
                 
         except Exception as e:
             raise Exception(f"Error loading models and components: {str(e)}")
@@ -57,10 +52,7 @@ class GPUPredictor:
     def get_categories(self):
         """Return the known categories for categorical features."""
         try:
-            categories = {}
-            for column in self.categorical_columns:
-                categories[column] = self.label_encoders[column].classes_.tolist()
-            return categories
+            return self.known_categories
         except Exception as e:
             raise Exception(f"Error getting categories: {str(e)}")
     
@@ -75,16 +67,12 @@ class GPUPredictor:
                              for col in self.feature_order}
             
             # Encode categorical variables
-            for column in self.categorical_columns:
-                df[column] = self.label_encoders[column].transform(df[column].astype(str))
-            
-            # Handle missing values with regression imputation
-            impute_columns = ["memSize", "memBusWidth", "memClock"]
-            impute_data = df[impute_columns].copy()
-            df[impute_columns] = self.reg_imputer.transform(impute_data)
+            categorical_data = df[self.categorical_columns].copy()
+            encoded_cats = self.ordinal_encoder.transform(categorical_data)
+            df[self.categorical_columns] = encoded_cats
             
             # Scale numerical features
-            df[self.numerical_columns] = self.scaler.transform(df[self.numerical_columns])
+            df[self.numerical_columns] = self.feature_scaler.transform(df[self.numerical_columns])
             
             # Ensure correct column order
             df = df[self.feature_order]
@@ -101,8 +89,16 @@ class GPUPredictor:
             
             predictions = {}
             for model_type, model_dict in self.models.items():
+                # Get tree model predictions
                 tree_predictions = model_dict['feature_extractor'].predict(prepared_input)
-                deep_input = tree_predictions.reshape(-1, 1, 1)
+                
+                # Reshape for deep model depending on model type
+                if 'lstm' in model_type:
+                    deep_input = tree_predictions.reshape(-1, 1, 1)  # LSTM expects (samples, timesteps, features)
+                else:  # CNN
+                    deep_input = tree_predictions.reshape(-1, 1, 1, 1)  # CNN expects (samples, height, width, channels)
+                
+                # Get final prediction
                 final_prediction = model_dict['predictor'].predict(deep_input).flatten()[0]
                 
                 # Inverse transform the prediction using score_scaler

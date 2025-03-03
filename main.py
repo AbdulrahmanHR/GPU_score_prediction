@@ -20,32 +20,22 @@ def create_directory_structure():
     """
     base_dir = 'models'
     data_processing_dir = os.path.join(base_dir, 'data_processing')
-    encoders_dir = os.path.join(data_processing_dir, 'encoders')
     
-    for directory in [base_dir, data_processing_dir, encoders_dir]:
+    for directory in [base_dir, data_processing_dir]:
         os.makedirs(directory, exist_ok=True)
     
-    return base_dir, data_processing_dir, encoders_dir
+    return base_dir, data_processing_dir
 
-def save_data_processing_components(data_prep, encoders_dir, data_processing_dir):
+def save_data_processing_components(data_prep, data_processing_dir):
     """
     Save all data preprocessing components for later use in inference.
     
     Args:
         data_prep: DataPreparation instance containing preprocessing components
-        encoders_dir: Directory path for saving label encoders
-        data_processing_dir: Directory path for saving other preprocessing components
+        data_processing_dir: Directory path for saving preprocessing components
     """
     # Save feature order for consistent preprocessing
     data_prep.save_feature_order(os.path.join(data_processing_dir, 'feature_order.json'))
-    
-    # Save label encoders for categorical variables
-    for column, encoder in data_prep.label_encoders.items():
-        joblib.dump(encoder, os.path.join(encoders_dir, f'le_{column}.pkl'))
-    
-    # Save scaler for feature normalization
-    joblib.dump(data_prep.scaler, os.path.join(data_processing_dir, 'scaler.pkl'))
-    joblib.dump(data_prep.score_scaler, os.path.join(data_processing_dir, 'score_scaler.pkl'))
 
 def calculate_metrics(predictions, true_values):
     """
@@ -89,23 +79,22 @@ def main():
     tf.keras.mixed_precision.set_global_policy('mixed_float16')
     
     # Create directory structure for saving models and artifacts
-    base_dir, data_processing_dir, encoders_dir = create_directory_structure()
+    base_dir, data_processing_dir = create_directory_structure()
     
     # Prepare and preprocess the data
     print("\nPreparing data...")
     data_prep = DataPreparation('gpu_specs_v6_score.csv')
     
-    # Use preprocess_train_test_split instead of preprocess_data
     train_data, test_data = data_prep.preprocess_train_test_split()
     
     # Save preprocessing components for inference
     print("\nSaving data processing components...")
-    save_data_processing_components(data_prep, encoders_dir, data_processing_dir)
+    save_data_processing_components(data_prep, data_processing_dir)
     
     # Save unique categories for categorical variables
     known_categories = {}
     for col in data_prep.categorical_columns:
-        known_categories[col] = train_data[col].unique().tolist()
+        known_categories[col] = data_prep.ordinal_encoder.categories_[data_prep.categorical_columns.index(col)].tolist()
     
     with open(os.path.join(data_processing_dir, 'known_categories.json'), 'w') as f:
         json.dump(known_categories, f)
@@ -119,16 +108,13 @@ def main():
     metrics = {}
     model_paths = {
         'data_processing': {
-            'known_categories': os.path.join(data_processing_dir, 'known_categories.json'),
-            'label_encoders': {}
+            'known_categories': os.path.join(data_processing_dir, 'known_categories.json')
         }
     }
     
-    # Populate label encoders paths
-    for col in data_prep.categorical_columns:
-        model_paths['data_processing']['label_encoders'][col] = os.path.join(encoders_dir, f'le_{col}.pkl')
-    
-    model_paths['data_processing']['scaler'] = os.path.join(data_processing_dir, 'scaler.pkl')
+    # Update model paths for the new encoder structure
+    model_paths['data_processing']['ordinal_encoder'] = os.path.join(data_processing_dir, 'ordinal_encoder.pkl')
+    model_paths['data_processing']['feature_scaler'] = os.path.join(data_processing_dir, 'feature_scaler.pkl')
     model_paths['data_processing']['score_scaler'] = os.path.join(data_processing_dir, 'score_scaler.pkl')
     
     # Define all model combinations to train

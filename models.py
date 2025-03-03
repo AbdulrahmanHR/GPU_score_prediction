@@ -3,13 +3,14 @@ from matplotlib import pyplot as plt
 import xgboost as xgb
 import lightgbm as lgb
 import numpy as np
-import os
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import KBinsDiscretizer
 import tensorflow as tf
 from keras.layers import Dense, LSTM, Conv1D, Flatten, Input, Dropout, BatchNormalization # type: ignore
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau # type: ignore
 from keras.optimizers import Adam # type: ignore
+import os
+import json
 
 class HybridModels:
     def __init__(self, train_data, test_data=None, n_splits=5):
@@ -29,20 +30,21 @@ class HybridModels:
         self.n_splits = int(n_splits)
         self.feature_names = train_data.drop(columns=["score"]).columns.tolist()
         
-        # Create directories for saving plots
+        # Create directories for saving plots and model parameters
         os.makedirs("Importance_plots", exist_ok=True)  # Folder for importance plots
+        os.makedirs("model_params", exist_ok=True)      # Folder for model parameters
                
         # Define importance weights for key GPU features
         self.feature_weights = {
             'gpuClock': 3.0,
             'unifiedShader': 2.9,
             'gpuChip': 1.5,
-            'memSize': 1.3,
-            'rop': 1.0,
+            'memSize': 1.4,
+            'rop': 1.3,
             'memClock': 1.3,          
-            'releaseYear': 0.8,       
+            'releaseYear': 0.7,       
             'manufacturer': 0.6, 
-            'memBusWidth': 0.6,
+            'memBusWidth': 1.2,
             'tmu': 0.6,             
             'memType': 1.0,          
             'bus': 0.6               
@@ -68,6 +70,14 @@ class HybridModels:
         
         # Store best models
         self.best_models = {}
+        
+        # Store best hyperparameters
+        self.best_hyperparameters = {
+            'xgboost_lstm': {},
+            'lightgbm_lstm': {},
+            'xgboost_cnn': {},
+            'lightgbm_cnn': {}
+        }
         
     def prepare_stratified_folds(self):
         """
@@ -144,7 +154,7 @@ class HybridModels:
         return model
     
     def train_deep_model(self, model, features_train, features_val, y_train, y_val, 
-                        model_name, epochs=200, batch_size=16):
+                        model_name, epochs=150, batch_size=16):
         """
         Train a deep learning model with early stopping and learning rate reduction.
         """
@@ -201,6 +211,20 @@ class HybridModels:
             'r2': r2 * 100  # Convert to percentage
         }
         
+        # Store deep model hyperparameters
+        
+        deep_model_params = {
+            'epochs': len(history.history['loss']),
+            'batch_size': batch_size,
+            'initial_learning_rate': 0.001,
+            'early_stopping_patience': 20,
+            'lr_reduction_factor': 0.3,
+            'lr_reduction_patience': 6
+        }
+        
+        # Add deep model params to hyperparameters
+        self.best_hyperparameters[base_model_name]['deep_model'] = deep_model_params
+        
         return model, predictions, y_val
     
     def train_xgboost_model(self, X_train, X_val, y_train, y_val):
@@ -209,15 +233,15 @@ class HybridModels:
         """
         # Define parameter grid for XGBoost
         param_grid = {
-            'n_estimators': [500, 1000],
-            'max_depth': [15, 20, 25],
-            'learning_rate': [0.001, 0.01, 0.05],
-            'colsample_bytree': [0.7, 0.8],
+            'n_estimators': [150, 250, 500],
+            'max_depth': [15],
+            'learning_rate': [0.01, 0.05],
+            'colsample_bytree': [0.8],
             'subsample': [0.8],
-            'min_child_weight': [2, 3, 5],
-            'gamma': [0.1, 0.2],
-            'reg_alpha': [0.1, 0.2, 0.5],
-            'reg_lambda': [1.0, 2.0]
+            'min_child_weight': [4, 5],
+            'gamma': [0.1],
+            'reg_alpha': [0.1],
+            'reg_lambda': [1.0]
         }
         
         best_model = None
@@ -284,7 +308,7 @@ class HybridModels:
         plt.savefig("Importance_plots/xgboost_grid_search_feature_importance.png")
         plt.close()
         
-        return best_model
+        return best_model, best_params
 
     
     def train_lightgbm_model(self, X_train, X_val, y_train, y_val):
@@ -293,15 +317,15 @@ class HybridModels:
         """
         # Define parameter grid for LightGBM
         param_grid = {
-            'n_estimators': [500, 800],
-            'max_depth': [15, 20, 25],
-            'learning_rate': [0.001, 0.005, 0.01],
-            'num_leaves': [10, 20, 35],
+            'n_estimators': [150, 500, 600, 800],
+            'max_depth': [10, 15],
+            'learning_rate': [0.01],
+            'num_leaves': [10, 15],
             'feature_fraction': [0.8],
             'bagging_fraction': [0.8],
-            'bagging_freq': [3, 5],
-            'min_child_samples': [15, 25, 35],
-            'reg_alpha': [0.4, 0.6],
+            'bagging_freq': [3],
+            'min_child_samples': [10, 15],
+            'reg_alpha': [0.4],
             'reg_lambda': [1.0, 1.5]
         }
         
@@ -369,7 +393,30 @@ class HybridModels:
         plt.savefig("Importance_plots/lightgbm_grid_search_feature_importance.png")
         plt.close()
         
-        return best_model
+        return best_model, best_params
+    
+    def save_hyperparameters(self):
+        """
+        Save best hyperparameters for all models to a JSON file.
+        """
+        # Create a formatted version of hyperparameters for saving
+        formatted_hyperparameters = {}
+        
+        for model_name, params in self.best_hyperparameters.items():
+            if not params:
+                continue
+                
+            # Create a deep copy of parameters to avoid reference issues
+            formatted_hyperparameters[model_name] = {
+                'tree_model': params.get('tree_model', {}),
+                'deep_model': params.get('deep_model', {})
+            }
+        
+        # Save to JSON file
+        with open('model_params/best_hyperparameters.json', 'w') as f:
+            json.dump(formatted_hyperparameters, f, indent=4)
+            
+        print(f"Saved best hyperparameters to model_params/best_hyperparameters.json")
     
     def evaluate_on_test_set(self, test_data, model_name='best'):
         """
@@ -462,6 +509,7 @@ class HybridModels:
         fold_true_values = []
         best_score = float('inf')
         best_models = None
+        best_tree_params = None
         
         if name not in self.training_history:
             self.training_history[name] = {}
@@ -481,7 +529,7 @@ class HybridModels:
             y_val_fold = self.y[val_idx]
             
             # Train tree-based feature extractor
-            tree_model = tree_model_func(X_train_fold, X_val_fold, y_train_fold, y_val_fold)
+            tree_model, tree_params = tree_model_func(X_train_fold, X_val_fold, y_train_fold, y_val_fold)
             
             # Generate features for deep learning model
             features_train = tree_model.predict(X_train_fold).reshape(-1, 1, 1)
@@ -506,12 +554,19 @@ class HybridModels:
                     'feature_extractor': tree_model,
                     'predictor': deep_model
                 }
+                best_tree_params = tree_params
             
             fold_predictions.append(predictions)
             fold_true_values.append(true_values)
         
         # Store best models for later use
         self.best_models[name] = best_models
+        
+        # Store best hyperparameters
+        self.best_hyperparameters[name]['tree_model'] = best_tree_params
+        
+        # Save hyperparameters to file after each model is trained
+        self.save_hyperparameters()
         
         return {
             'predictions': np.concatenate(fold_predictions),
